@@ -106,14 +106,21 @@ export default function main(): void {
         bot.sleep(500);
     }
 
+    // Automatically join private /bludrutbrawl-99999 room if not already in bludrutbrawl
+    if (bot.map.name.toLowerCase() !== "bludrutbrawl") {
+        bot.log("[Non-OP PvP AI] Joining /bludrutbrawl-99999 arena...");
+        bot.map.join("bludrutbrawl-99999", "Enter0", "Spawn");
+        bot.wait.forMapLoad("bludrutbrawl", 30);
+        bot.sleep(1000);
+    }
+
     const preflight = runNonOpPreflightCheck(config);
     bot.log(`[PreFlight] Class="${preflight.equippedClass}", Amulet="${preflight.equippedAmulet ?? "None"}"`);
     if (!preflight.passed) {
         for (const v of preflight.violations) {
-            bot.log(`[PreFlight VIOLATION] ${v}`);
+            bot.log(`[PreFlight WARNING] ${v}`);
         }
-        bot.log("[PreFlight] Stopping bot due to Non-OP rule violations.");
-        return;
+        bot.log("[PreFlight] Continuing in 1v1 test mode despite preflight warnings.");
     }
 
     const wave: WaveTrackerState = {

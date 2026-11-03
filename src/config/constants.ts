@@ -73,6 +73,7 @@ export const FORBIDDEN_ENHANCEMENT_PATTERN_IDS: ReadonlySet<number> = new Set([
 export const BLUDRUT_SAFEZONE_CELLS: ReadonlySet<string> = new Set([
     "Enter0",
     "Enter1",
+    "Wait",
 ]);
 
 /**
@@ -145,7 +146,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 420,
-                aimX: 770,
+                aimX: 860,
                 aimY: 275,
                 spawnX: 173,
                 spawnY: 342,
@@ -171,7 +172,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 220,
                 yMin: 240,
                 yMax: 400,
-                aimX: 180,
+                aimX: 110,
                 aimY: 275,
                 spawnX: 789,
                 spawnY: 354,
@@ -184,7 +185,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 770,
+                aimX: 860,
                 aimY: 275,
                 spawnX: 191,
                 spawnY: 352,
@@ -198,7 +199,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 yMin: 220,
                 yMax: 285,
                 aimX: 465,
-                aimY: 275,
+                aimY: 255,
                 spawnX: 468,
                 spawnY: 272,
             },
@@ -222,7 +223,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 225,
                 yMin: 240,
                 yMax: 400,
-                aimX: 205,
+                aimX: 110,
                 aimY: 278,
                 spawnX: 787,
                 spawnY: 354,
@@ -235,8 +236,8 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 760,
-                aimY: 285,
+                aimX: 860,
+                aimY: 280,
                 spawnX: 192,
                 spawnY: 349,
             },
@@ -260,7 +261,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 225,
                 yMin: 240,
                 yMax: 400,
-                aimX: 205,
+                aimX: 110,
                 aimY: 282,
                 spawnX: 787,
                 spawnY: 350,
@@ -273,7 +274,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 765,
+                aimX: 860,
                 aimY: 278,
                 spawnX: 186,
                 spawnY: 350,
@@ -298,7 +299,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 yMin: 445,
                 yMax: 530,
                 aimX: 485,
-                aimY: 460,
+                aimY: 485,
                 spawnX: 483,
                 spawnY: 472,
             },
@@ -321,7 +322,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 815,
+                aimX: 870,
                 aimY: 280,
                 spawnX: 188,
                 spawnY: 351,
@@ -346,7 +347,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 235,
                 yMin: 240,
                 yMax: 400,
-                aimX: 215,
+                aimX: 110,
                 aimY: 275,
                 spawnX: 785,
                 spawnY: 350,
@@ -359,7 +360,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 775,
+                aimX: 860,
                 aimY: 275,
                 spawnX: 192,
                 spawnY: 351,
@@ -387,8 +388,8 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 230,
                 yMin: 240,
                 yMax: 400,
-                aimX: 210,
-                aimY: 285,
+                aimX: 110,
+                aimY: 280,
                 spawnX: 789,
                 spawnY: 349,
             },
@@ -400,7 +401,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 765,
+                aimX: 860,
                 aimY: 278,
                 spawnX: 186,
                 spawnY: 354,
@@ -414,7 +415,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 yMin: 240,
                 yMax: 305,
                 aimX: 465,
-                aimY: 280,
+                aimY: 260,
                 spawnX: 488,
                 spawnY: 429,
             },
@@ -439,8 +440,8 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 230,
                 yMin: 240,
                 yMax: 400,
-                aimX: 215,
-                aimY: 300,
+                aimX: 110,
+                aimY: 295,
                 spawnX: 785,
                 spawnY: 350,
             },
@@ -452,8 +453,8 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 770,
-                aimY: 297,
+                aimX: 860,
+                aimY: 295,
                 spawnX: 185,
                 spawnY: 347,
             },
@@ -467,7 +468,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 yMin: 450,
                 yMax: 530,
                 aimX: 485,
-                aimY: 465,
+                aimY: 485,
                 spawnX: 490,
                 spawnY: 342,
             },
@@ -493,7 +494,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 185,
                 yMin: 240,
                 yMax: 400,
-                aimX: 160,
+                aimX: 100,
                 aimY: 295,
                 spawnX: 787,
                 spawnY: 351,
@@ -506,7 +507,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 770,
+                aimX: 860,
                 aimY: 280,
                 spawnX: 188,
                 spawnY: 350,
@@ -530,7 +531,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 225,
                 yMin: 240,
                 yMax: 400,
-                aimX: 205,
+                aimX: 110,
                 aimY: 280,
                 spawnX: 785,
                 spawnY: 350,
@@ -555,7 +556,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 yMin: 445,
                 yMax: 530,
                 aimX: 410,
-                aimY: 460,
+                aimY: 485,
                 spawnX: 409,
                 spawnY: 471,
             },
@@ -579,7 +580,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 230,
                 yMin: 240,
                 yMax: 400,
-                aimX: 210,
+                aimX: 110,
                 aimY: 270,
                 spawnX: 787,
                 spawnY: 349,
@@ -592,7 +593,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 765,
+                aimX: 860,
                 aimY: 280,
                 spawnX: 190,
                 spawnY: 350,
@@ -617,7 +618,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 230,
                 yMin: 240,
                 yMax: 400,
-                aimX: 215,
+                aimX: 110,
                 aimY: 288,
                 spawnX: 785,
                 spawnY: 350,
@@ -630,7 +631,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 760,
+                aimX: 860,
                 aimY: 286,
                 spawnX: 190,
                 spawnY: 350,
@@ -656,7 +657,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 235,
                 yMin: 240,
                 yMax: 400,
-                aimX: 220,
+                aimX: 110,
                 aimY: 287,
                 spawnX: 785,
                 spawnY: 350,
@@ -670,7 +671,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 yMin: 220,
                 yMax: 285,
                 aimX: 430,
-                aimY: 275,
+                aimY: 255,
                 spawnX: 437,
                 spawnY: 271,
             },
@@ -682,7 +683,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 960,
                 yMin: 240,
                 yMax: 400,
-                aimX: 775,
+                aimX: 860,
                 aimY: 280,
                 spawnX: 185,
                 spawnY: 350,
@@ -704,7 +705,7 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
                 xMax: 220,
                 yMin: 240,
                 yMax: 420,
-                aimX: 195,
+                aimX: 110,
                 aimY: 280,
                 spawnX: 785,
                 spawnY: 350,
@@ -712,6 +713,61 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         ],
     },
 ] as const;
+
+/**
+ * BFS Shortest-Path Door Resolver across the 16 screens of `/bludrutbrawl`.
+ * Given `fromCell` and `goalCell`, returns the immediate `DoorTriggerArea` in `fromCell`
+ * that leads along the shortest path to `goalCell` (avoiding Safezones unless `goalCell` is a Safezone).
+ */
+export function findNextDoorTowardCell(
+    fromCell: string,
+    goalCell: string,
+): DoorTriggerArea | null {
+    if (fromCell.toLowerCase() === goalCell.toLowerCase()) return null;
+    const startScreen = BLUDRUT_16_SCREENS.find(
+        (s) => s.cell.toLowerCase() === fromCell.toLowerCase(),
+    );
+    if (!startScreen || startScreen.doors.length === 0) return null;
+
+    const queue: { firstDoor: DoorTriggerArea; currentCell: string }[] = [];
+    const visited = new Set<string>([startScreen.cell.toLowerCase()]);
+
+    for (const d of startScreen.doors) {
+        if (
+            (d.targetCell === "Enter0" || d.targetCell === "Enter1") &&
+            d.targetCell.toLowerCase() !== goalCell.toLowerCase()
+        ) {
+            continue;
+        }
+        queue.push({ firstDoor: d, currentCell: d.targetCell });
+    }
+
+    while (queue.length > 0) {
+        const item = queue.shift()!;
+        if (item.currentCell.toLowerCase() === goalCell.toLowerCase()) {
+            return item.firstDoor;
+        }
+        const key = item.currentCell.toLowerCase();
+        if (visited.has(key)) continue;
+        visited.add(key);
+
+        const nextScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === key);
+        if (!nextScreen) continue;
+        for (const nd of nextScreen.doors) {
+            const nKey = nd.targetCell.toLowerCase();
+            if (visited.has(nKey)) continue;
+            if (
+                (nd.targetCell === "Enter0" || nd.targetCell === "Enter1") &&
+                nKey !== goalCell.toLowerCase()
+            ) {
+                continue;
+            }
+            queue.push({ firstDoor: item.firstDoor, currentCell: nd.targetCell });
+        }
+    }
+
+    return startScreen.doors[0] ?? null;
+}
 
 /**
  * Checks whether a linear walk trajectory from `(x0, y0)` to `(x1, y1)` inside `cell`

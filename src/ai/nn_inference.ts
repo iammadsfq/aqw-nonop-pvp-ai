@@ -8,7 +8,7 @@
  * -> `26 -> 64 (tanh) -> 64 (tanh) -> 14` logits -> Action Masking -> `CombatDecision`.
  */
 
-import { BLUDRUT_16_SCREENS } from "../config/constants";
+import { BLUDRUT_16_SCREENS, findNextDoorTowardCell } from "../config/constants";
 import { findSafeManaTapNpc } from "../rules/shield";
 import type { CombatDecision, CombatObservation } from "../state/types";
 import { BATTLE_WARRIOR_1V1_POLICY_WEIGHTS, type TrainedMlpPolicySpec } from "./trained_policy_weights";
@@ -129,16 +129,63 @@ export function inferBattleWarriorDecision(
     obs: CombatObservation,
     policy: TrainedMlpPolicySpec = BATTLE_WARRIOR_1V1_POLICY_WEIGHTS,
 ): CombatDecision {
+    if (obs.currentCell === "Wait") {
+        return {
+            action: "IDLE",
+            reason: "[PPO-NN] Waiting in respawn room (Wait)...",
+        };
+    }
+
     if (obs.inSafezone) {
         if (obs.selfHpRatio >= 0.95 && obs.selfMpRatio >= 0.85) {
+            const exitDoor = findNextDoorTowardCell(obs.currentCell, "Crosslower");
+            if (exitDoor) {
+                return {
+                    action: obs.canSprint ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
+                    targetCell: exitDoor.targetCell,
+                    targetX: exitDoor.aimX,
+                    targetY: exitDoor.aimY,
+                    reason: `[PPO-NN] Ready in Safezone (${obs.currentCell}); exiting door to ${exitDoor.targetAlias} (${exitDoor.targetCell}).`,
+                };
+            }
+        }
+        return {
+            action: "REST_OUT_OF_COMBAT",
+            reason: "[PPO-NN] Recovering in Safezone before next wave.",
+        };
+    }
+
+    const oppInCell = obs.opponents.find(
+        (p) => p.cell === obs.currentCell && p.alive,
+    );
+    const anyOpp = obs.opponents.find(
+        (p) => p.alive && p.cell !== "Enter0" && p.cell !== "Enter1" && p.cell !== "Wait",
+    );
+
+    // If no opponent is in our current screen yet, navigate through doors toward the opponent (or Mid `Crosslower`)
+    if (!oppInCell) {
+        if (obs.selfHpRatio < 0.75 && !obs.selfInCombat) {
             return {
-                action: "ADVANCE_TO_COMBAT_CELL",
-                reason: "[PPO-NN] Ready in Safezone; advancing to combat cell.",
+                action: "IDLE",
+                reason: `[PPO-NN] Holding in ${obs.currentCell} to catch 6.0s Out-of-Combat server regen tick (HP=${Math.round(obs.selfHpRatio * 100)}%).`,
             };
+        }
+        const goalCell = anyOpp ? anyOpp.cell : "Crosslower";
+        if (obs.currentCell.toLowerCase() !== goalCell.toLowerCase()) {
+            const nextDoor = findNextDoorTowardCell(obs.currentCell, goalCell);
+            if (nextDoor) {
+                return {
+                    action: obs.canSprint ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
+                    targetCell: nextDoor.targetCell,
+                    targetX: nextDoor.aimX,
+                    targetY: nextDoor.aimY,
+                    reason: `[PPO-NN] Navigating ${obs.currentCell} -> ${nextDoor.targetAlias} (${nextDoor.targetCell}) toward ${goalCell}.`,
+                };
+            }
         }
         return {
             action: "IDLE",
-            reason: "[PPO-NN] Recovering in Safezone before next wave.",
+            reason: `[PPO-NN] Holding center stage at ${obs.currentCell} waiting for opponent.`,
         };
     }
 
@@ -147,14 +194,8 @@ export function inferBattleWarriorDecision(
     const h2 = denseTanh(h1, policy.w2, policy.b2);
     const logits = denseLinear(h2, policy.wOut, policy.bOut);
 
-    const oppInCell = obs.opponents.find(
-        (p) => p.cell === obs.currentCell && p.alive,
-    );
-    const anyOpp = obs.opponents.find((p) => p.alive);
-    const dist = oppInCell
-        ? Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y)
-        : 9999.0;
-    const inMelee = Boolean(oppInCell && dist <= MELEE_RANGE);
+    const dist = Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y);
+    const inMelee = dist <= MELEE_RANGE;
     const safeNpc = findSafeManaTapNpc(obs);
 
     // Mask out illegal/unavailable actions (`-1e9` logit penalty)
