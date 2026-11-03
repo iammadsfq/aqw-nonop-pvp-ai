@@ -14,18 +14,74 @@ import { applyRuleShield, enforceNpcProtectionGuard } from "./rules/shield";
 import { extractObservation } from "./state/extractor";
 import type { CombatDecision, CombatObservation, WaveTrackerState } from "./state/types";
 
-function triggerSprintWalk(x: number, y: number, isSprint: boolean): void {
+let lastWalkCell = "";
+let lastWalkX = -1;
+let lastWalkY = -1;
+let lastWalkTime = 0;
+let currentCellTracker = "";
+let cellEnteredAt = 0;
+
+function triggerSprintWalk(cell: string, x: number, y: number, isSprint: boolean): boolean {
+    const now = Date.now();
+    const isMoving = Boolean(bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove"));
+    const sameTarget =
+        cell === lastWalkCell && Math.hypot(x - lastWalkX, y - lastWalkY) <= 25;
+
+    // Throttle walkTo calls so Flash's mvTimer and onEnterFrameWalk are not reset every 100ms!
+    if (sameTarget && isMoving && now - lastWalkTime < 650) {
+        return false;
+    }
+
+    lastWalkCell = cell;
+    lastWalkX = x;
+    lastWalkY = y;
+    lastWalkTime = now;
+
     if (isSprint) {
-        bot.flash.set("world.pDash", true);
+        bot.flash.set("world.justRan", true);
         bot.player.walkTo(x, y, AQW_SPRINT_WALK_SPEED);
     } else {
         bot.player.walkTo(x, y, AQW_DEFAULT_WALK_SPEED);
     }
+    return true;
+}
+
+function hasArrivedAtDoorArchway(obs: CombatObservation, targetX: number, targetY: number): boolean {
+    // Wait at least 500ms after entering a cell so AvatarMC has settled on the spawn pad
+    if (Date.now() - cellEnteredAt < 500) {
+        return false;
+    }
+    const dist = Math.hypot(obs.selfX - targetX, obs.selfY - targetY);
+    if (dist <= 105) {
+        return true;
+    }
+    // Right archway trigger zone
+    if (targetX >= 750 && obs.selfX >= 735 && obs.selfY <= 318) {
+        return true;
+    }
+    // Left archway trigger zone
+    if (targetX <= 220 && obs.selfX <= 235 && obs.selfY <= 318) {
+        return true;
+    }
+    // Top archway trigger zone (e.g., Mid -> Top or B3 -> Capt)
+    if (targetY <= 265 && obs.selfY <= 290 && Math.abs(obs.selfX - targetX) <= 85) {
+        return true;
+    }
+    // Bottom wide door trigger zone (e.g., Top -> Mid or Capt -> B3)
+    if (targetY >= 470 && obs.selfY >= 445) {
+        return true;
+    }
+    return false;
 }
 
 function executeDecision(decision: CombatDecision, obs: CombatObservation, combatCell: string, safezoneCell: string): void {
+    let shouldLog = decision.action !== "IDLE";
+
     switch (decision.action) {
         case "IDLE":
+            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
             break;
         case "CANCEL_AUTO_ATTACK":
             bot.combat.cancelAutoAttack();
@@ -47,36 +103,58 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             }
             break;
         case "USE_SKILL_1":
-            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+            if (decision.targetName) {
                 bot.combat.attackPlayer(decision.targetName);
             }
             bot.skills.useSkill(1);
             break;
         case "USE_SKILL_2":
-            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+            if (decision.targetName) {
                 bot.combat.attackPlayer(decision.targetName);
             }
             bot.skills.useSkill(2);
             break;
         case "USE_SKILL_3":
+            if (decision.targetName) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
             bot.skills.useSkill(3);
             break;
         case "USE_SKILL_4":
-            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+            if (decision.targetName) {
                 bot.combat.attackPlayer(decision.targetName);
             }
             bot.skills.useSkill(4);
             break;
         case "WALK_TO_POINT":
-        case "WALK_TO_DOOR":
+            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
             if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                triggerSprintWalk(decision.targetX, decision.targetY, false);
+                shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, false);
             }
             break;
         case "SPRINT_TO_POINT":
+            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
+            if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
+                shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, obs.canSprint);
+            }
+            break;
+        case "WALK_TO_DOOR":
         case "SPRINT_TO_DOOR":
             if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                triggerSprintWalk(decision.targetX, decision.targetY, obs.canSprint);
+                if (
+                    decision.targetCell &&
+                    hasArrivedAtDoorArchway(obs, decision.targetX, decision.targetY)
+                ) {
+                    bot.map.jump(decision.targetCell, decision.targetPad ?? "Left");
+                    shouldLog = true;
+                } else {
+                    const useSprint = decision.action === "SPRINT_TO_DOOR" && obs.canSprint;
+                    shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, useSprint);
+                }
             }
             break;
         case "RETREAT_TO_SAFEZONE":
@@ -88,7 +166,7 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             bot.map.jump(combatCell, "Left");
             break;
     }
-    if (decision.action !== "IDLE") {
+    if (shouldLog) {
         bot.log(`[1v1 AI] ${decision.action} -> ${decision.reason}`);
     }
 }
@@ -134,19 +212,23 @@ export default function main(): void {
     };
 
     const allyNames = new Set<string>();
-    let opponentWasAliveInCell = false;
+    let engagedOpponentName: string | null = null;
 
     while (!bot.shouldExit && wave.teamKills < config.killTarget) {
         if (!bot.player.alive) {
             wave.waveActive = false;
             wave.opponentKilledInWave = false;
             wave.canReturnToSafezone = false;
-            opponentWasAliveInCell = false;
+            engagedOpponentName = null;
             bot.sleep(500);
             continue;
         }
 
         const obs = extractObservation(allyNames, wave);
+        if (obs.currentCell !== currentCellTracker) {
+            currentCellTracker = obs.currentCell;
+            cellEnteredAt = Date.now();
+        }
 
         // Immediately enforce NPC protection so a Brawler/Restorer is never killed
         enforceNpcProtectionGuard(obs);
@@ -154,15 +236,25 @@ export default function main(): void {
         // Update 1v1 wave & kill tracking
         const opponentInCell = obs.opponents.find((p) => p.cell === obs.currentCell && p.alive);
         if (opponentInCell) {
-            opponentWasAliveInCell = true;
+            engagedOpponentName = opponentInCell.username;
             wave.waveActive = true;
-        } else if (opponentWasAliveInCell && !obs.inSafezone) {
-            // Opponent died or left cell after engagement -> wave kill achieved
-            opponentWasAliveInCell = false;
-            wave.opponentKilledInWave = true;
-            wave.canReturnToSafezone = true;
-            wave.teamKills += 1;
-            bot.log(`[WaveTracker] Opponent eliminated! Score: ${wave.teamKills}/${config.killTarget}. Safezone unlocked.`);
+        } else if (engagedOpponentName && !obs.inSafezone) {
+            const trackedOpp = obs.opponents.find(
+                (p) => p.username.toLowerCase() === engagedOpponentName!.toLowerCase(),
+            );
+            if (
+                !trackedOpp ||
+                !trackedOpp.alive ||
+                trackedOpp.cell === "Wait" ||
+                trackedOpp.cell === "Enter0" ||
+                trackedOpp.cell === "Enter1"
+            ) {
+                engagedOpponentName = null;
+                wave.opponentKilledInWave = true;
+                wave.canReturnToSafezone = true;
+                wave.teamKills += 1;
+                bot.log(`[WaveTracker] Opponent eliminated! Score: ${wave.teamKills}/${config.killTarget}. Safezone unlocked.`);
+            }
         }
 
         if (obs.inSafezone && wave.canReturnToSafezone) {

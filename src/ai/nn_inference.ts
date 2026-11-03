@@ -143,6 +143,7 @@ export function inferBattleWarriorDecision(
                 return {
                     action: obs.canSprint ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: exitDoor.targetCell,
+                    targetPad: exitDoor.targetPad,
                     targetX: exitDoor.aimX,
                     targetY: exitDoor.aimY,
                     reason: `[PPO-NN] Ready in Safezone (${obs.currentCell}); exiting door to ${exitDoor.targetAlias} (${exitDoor.targetCell}).`,
@@ -177,6 +178,7 @@ export function inferBattleWarriorDecision(
                 return {
                     action: obs.canSprint ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: nextDoor.targetCell,
+                    targetPad: nextDoor.targetPad,
                     targetX: nextDoor.aimX,
                     targetY: nextDoor.aimY,
                     reason: `[PPO-NN] Navigating ${obs.currentCell} -> ${nextDoor.targetAlias} (${nextDoor.targetCell}) toward ${goalCell}.`,
@@ -197,6 +199,7 @@ export function inferBattleWarriorDecision(
     const dist = Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y);
     const inMelee = dist <= MELEE_RANGE;
     const safeNpc = findSafeManaTapNpc(obs);
+    const prepAura = obs.selfAuras.find((a) => /prepared strike/i.test(a.name));
 
     // Mask out illegal/unavailable actions (`-1e9` logit penalty)
     const masked = [...logits];
@@ -205,11 +208,29 @@ export function inferBattleWarriorDecision(
         masked[8] = -1e9;  // SPRINT_KITE_AWAY
         masked[13] = -1e9; // SPRINT_DOOR_BACKWARD
     }
-    if (!obs.skillsReady[0] || obs.selfMp < 15 || !inMelee) masked[3] = -1e9; // USE_SKILL_1 (Decisive Strike)
-    if (!obs.skillsReady[1] || obs.selfMp < 30 || !inMelee) masked[4] = -1e9; // USE_SKILL_2 (Imbalancing Strike)
-    if (!obs.skillsReady[2] || obs.selfMp < 20) masked[5] = -1e9;             // USE_SKILL_3 (Prepared Strike)
-    if (!obs.skillsReady[3] || obs.selfMp < 30 || !inMelee) masked[6] = -1e9; // USE_SKILL_4 (On Guard - hostile target)
-    if (!safeNpc) masked[10] = -1e9;                                          // MANA_TAP_NPC
+    // Already well inside melee range (<= 220px): do not waste actions or Stamina "approaching"
+    if (dist <= 220) {
+        masked[1] = -1e9; // APPROACH_OPPONENT
+        masked[2] = -1e9; // SPRINT_TO_OPPONENT
+    }
+    if (!obs.skillsReady[0] || !inMelee) masked[3] = -1e9; // USE_SKILL_1 (Decisive Strike)
+    if (!obs.skillsReady[1] || !inMelee) masked[4] = -1e9; // USE_SKILL_2 (Imbalancing Strike)
+    if (!obs.skillsReady[2]) masked[5] = -1e9;             // USE_SKILL_3 (Prepared Strike)
+    if (!obs.skillsReady[3] || !inMelee) masked[6] = -1e9; // USE_SKILL_4 (On Guard)
+    if (!safeNpc || obs.selfMp >= 35) masked[10] = -1e9;   // MANA_TAP_NPC (only when MP < 35)
+
+    // While healthy (HP >= 50%) with an opponent in cell, stay engaged rather than fleeing the room or kiting out of melee range
+    if (obs.selfHpRatio >= 0.50) {
+        masked[7] = -1e9;  // KITE_AWAY
+        masked[8] = -1e9;  // SPRINT_KITE_AWAY
+        masked[11] = -1e9; // WALK_DOOR_FORWARD
+        masked[12] = -1e9; // WALK_DOOR_BACKWARD
+        masked[13] = -1e9; // SPRINT_DOOR_BACKWARD
+    }
+    // While Prepared Strike is active (next 2 Auto Attacks are unavoidable Crits), hold melee lock so Auto Attacks swing immediately
+    if (prepAura && inMelee) {
+        masked[9] = -1e9;  // JUKE_VERTICAL
+    }
 
     let bestAct = 0;
     let bestScore = -Infinity;
@@ -227,15 +248,16 @@ export function inferBattleWarriorDecision(
 
     switch (bestAct) {
         case 0: // FIGHT_STAND
-            if (oppInCell && (!obs.hasTarget || obs.targetIsNpc)) {
+            if (oppInCell && (!obs.hasTarget || obs.targetIsNpc || !obs.selfInCombat)) {
                 return {
                     action: "TARGET_OPPONENT",
                     targetName: oppInCell.username,
-                    reason: `[PPO-NN:${actName}] Acquiring opponent ${oppInCell.username}.`,
+                    reason: `[PPO-NN:${actName}] Engaging opponent ${oppInCell.username}.`,
                 };
             }
             return {
                 action: "IDLE",
+                targetName: oppInCell?.username,
                 reason: `[PPO-NN:${actName}] Holding position / auto-attacking.`,
             };
 
@@ -255,6 +277,7 @@ export function inferBattleWarriorDecision(
                 return {
                     action: bestAct === 2 ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: door.targetCell,
+                    targetPad: door.targetPad,
                     targetX: door.aimX,
                     targetY: door.aimY,
                     reason: `[PPO-NN:${actName}] Advancing toward ${anyOpp.cell} via ${door.targetAlias}.`,
@@ -277,6 +300,7 @@ export function inferBattleWarriorDecision(
         case 5:
             return {
                 action: "USE_SKILL_3",
+                targetName: oppInCell?.username,
                 reason: `[PPO-NN:${actName}] Activating Prepared Strike (next 2 AAs unavoidable Crit).`,
             };
         case 6:
@@ -299,7 +323,7 @@ export function inferBattleWarriorDecision(
         }
 
         case 9: { // JUKE_VERTICAL
-            const jukeY = obs.selfY > 355 ? 270 : 430;
+            const jukeY = obs.selfY > 365 ? 320 : 415;
             return {
                 action: "WALK_TO_POINT",
                 targetX: Math.round(obs.selfX),
@@ -331,6 +355,7 @@ export function inferBattleWarriorDecision(
                 return {
                     action: bestAct === 13 ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: door.targetCell,
+                    targetPad: door.targetPad,
                     targetX: door.aimX,
                     targetY: door.aimY,
                     reason: `[PPO-NN:${actName}] Transitioning to ${door.targetAlias} (${door.targetCell}).`,

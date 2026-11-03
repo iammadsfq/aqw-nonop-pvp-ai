@@ -102,5 +102,7 @@ export interface CombatDecision {
     targetY?: number;
     /** Target neighboring screen/cell when walking or sprinting to a door. */
     targetCell?: string;
+    /** Target pad in neighboring cell when transitioning through a door. */
+    targetPad?: string;
     reason: string;
 }

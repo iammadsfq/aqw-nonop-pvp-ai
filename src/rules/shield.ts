@@ -109,6 +109,7 @@ export function applyRuleShield(
     // accidentally trigger a room transition!
     if (
         (decision.action === "WALK_TO_POINT" || decision.action === "SPRINT_TO_POINT") &&
+        !decision.targetName &&
         typeof decision.targetX === "number" &&
         typeof decision.targetY === "number"
     ) {
