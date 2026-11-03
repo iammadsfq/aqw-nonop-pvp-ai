@@ -1,0 +1,46 @@
+# Local runtime binaries & client installations (do not commit to Git)
+/turu/
+/undead/
+/skua
+*.exe
+*.msi
+*.tar.gz
+*.zip
+*.dll
+*.bak
+
+# Environment variables & secrets (account credentials, API tokens)
+.env
+*.env
+.env.*
+!.env.example
+
+# Turu / Ruffle runtime data & logs
+/data/
+/logs/
+*.log
+packets.txt
+script-log.txt
+
+# Node / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python / RL Simulator
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+checkpoints/
+wandb/
+runs/
+*.onnx
+*.pt
+*.pth
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

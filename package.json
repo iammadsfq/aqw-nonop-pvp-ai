@@ -1,0 +1,12 @@
+{
+  "name": "aqw-nonop-pvp-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rule-compliant AI PvP Bot & Multi-Agent System for AQW Classic (Non-OP) 1v1/3v3 built on Turu Headless (Ruffle AVM2)",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "npx -y -p typescript@5.9.3 tsc --noEmit -p .",
+    "turu:gui": "./scripts/run-turu.sh",
+    "turu:headless": "./scripts/run-turu-headless.sh"
+  }
+}
