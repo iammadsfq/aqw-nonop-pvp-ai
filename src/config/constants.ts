@@ -76,14 +76,47 @@ export const BLUDRUT_SAFEZONE_CELLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Complete 16-screen topology of `/bludrutbrawl` (7 Blue + 7 Red + 2 Center).
- * Maps standard community PvP screen names to AQW internal SWF cell names
- * and defines the undirected/directed neighbor connectivity graph.
+ * 2D Axis-Aligned Bounding Box (AABB) representing a door activation zone on a screen.
+ * In AQW (`/bludrutbrawl`), doors are NOT single points — they are 2D trigger areas
+ * (e.g., `Top` -> `Mid` spans almost the entire bottom width `x: 140..900, y: 455..520`).
+ * Any walk trajectory from A to B whose line segment intersects this box will trigger
+ * the door transition mid-walk!
+ */
+export interface DoorTriggerArea {
+    targetAlias: string;
+    targetCell: string;
+    targetPad: string;
+    /** Door trigger bounding box in the origin cell. */
+    xMin: number;
+    xMax: number;
+    yMin: number;
+    yMax: number;
+    /** Safe aim point `(x, y)` inside the door trigger when intentionally taking this door. */
+    aimX: number;
+    aimY: number;
+    /** Empirical arrival spawn coordinates `(x, y)` in `targetCell`. */
+    spawnX: number;
+    spawnY: number;
+}
+
+/**
+ * Complete 16-screen topology of `/bludrutbrawl` (7 Blue + 7 Red + 2 Center),
+ * calibrated directly from live telemetry (`aqw_combat_telemetry.log`).
+ *
+ * Key topological rules verified from telemetry:
+ * 1. `Blue SZ` (`Enter0`) connects to `Blue B3` (`Morale0C`).
+ * 2. `Blue B3` (`Morale0C`) connects to `Blue SZ` (`Enter0`), `Blue Capt` (`Captain0`), and `Blue B2` (`Morale0B`).
+ * 3. `Blue B2` (`Morale0B`) connects to `Blue B3` (`Morale0C`) and `Blue B1` (`Morale0A`).
+ * 4. `Blue B1` (`Morale0A`) connects to `Blue B2` (`Morale0B`) and `Mid` (`Crosslower`).
+ * 5. `Mid` (`Crosslower`) connects to `Blue B1` (`Morale0A`), `Red B1` (`Morale1A`), and `Top` (`Crossupper`).
+ * 6. `Top` (`Crossupper`) connects to `Mid` (`Crosslower`), `Blue R1` (`Resource0A`), and `Red R1` (`Resource1A`).
+ * 7. `Blue R2` (`Resource0B`) ONLY connects to `Blue R1` (`Resource0A`) — NO door to `Captain0`!
+ * 8. `Blue Capt` (`Captain0`) ONLY connects to `Blue B3` (`Morale0C`) — NO door to `Resource0B`!
  */
 export interface BludrutScreenSpec {
     /** Community PvP alias (e.g., "Blue SZ", "Blue B3", "Mid", "Top"). */
     alias: string;
-    /** Internal AQW cell name in `/bludrutbrawl` (e.g., "Enter0", "Morale0A", "Center"). */
+    /** Internal AQW cell name in `/bludrutbrawl` (e.g., "Enter0", "Morale0C", "Crosslower"). */
     cell: string;
     /** Team side ownership ("blue" | "red" | "neutral"). */
     side: "blue" | "red" | "neutral";
@@ -91,6 +124,8 @@ export interface BludrutScreenSpec {
     role: "safezone" | "brawler" | "restorer" | "captain" | "mid" | "top";
     /** Directed door connections keyed by neighbor alias -> target cell. */
     neighbors: Readonly<Record<string, string>>;
+    /** 2D Door Trigger bounding boxes inside this screen. */
+    doors: readonly DoorTriggerArea[];
 }
 
 export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
@@ -100,11 +135,26 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         cell: "Enter0",
         side: "blue",
         role: "safezone",
-        neighbors: { "Blue B3": "Morale0A" },
+        neighbors: { "Blue B3": "Morale0C" },
+        doors: [
+            {
+                targetAlias: "Blue B3",
+                targetCell: "Morale0C",
+                targetPad: "Left",
+                xMin: 750,
+                xMax: 960,
+                yMin: 240,
+                yMax: 420,
+                aimX: 770,
+                aimY: 275,
+                spawnX: 173,
+                spawnY: 342,
+            },
+        ],
     },
     {
         alias: "Blue B3",
-        cell: "Morale0A",
+        cell: "Morale0C",
         side: "blue",
         role: "brawler",
         neighbors: {
@@ -112,6 +162,47 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
             "Blue B2": "Morale0B",
             "Blue Capt": "Captain0",
         },
+        doors: [
+            {
+                targetAlias: "Blue SZ",
+                targetCell: "Enter0",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 220,
+                yMin: 240,
+                yMax: 400,
+                aimX: 180,
+                aimY: 275,
+                spawnX: 789,
+                spawnY: 354,
+            },
+            {
+                targetAlias: "Blue B2",
+                targetCell: "Morale0B",
+                targetPad: "Left",
+                xMin: 750,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 770,
+                aimY: 275,
+                spawnX: 191,
+                spawnY: 352,
+            },
+            {
+                targetAlias: "Blue Capt",
+                targetCell: "Captain0",
+                targetPad: "Spawn",
+                xMin: 400,
+                xMax: 540,
+                yMin: 220,
+                yMax: 285,
+                aimX: 465,
+                aimY: 275,
+                spawnX: 468,
+                spawnY: 272,
+            },
+        ],
     },
     {
         alias: "Blue B2",
@@ -119,19 +210,75 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         side: "blue",
         role: "brawler",
         neighbors: {
-            "Blue B3": "Morale0A",
-            "Blue B1": "Morale0C",
+            "Blue B3": "Morale0C",
+            "Blue B1": "Morale0A",
         },
+        doors: [
+            {
+                targetAlias: "Blue B3",
+                targetCell: "Morale0C",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 225,
+                yMin: 240,
+                yMax: 400,
+                aimX: 205,
+                aimY: 278,
+                spawnX: 787,
+                spawnY: 354,
+            },
+            {
+                targetAlias: "Blue B1",
+                targetCell: "Morale0A",
+                targetPad: "Left",
+                xMin: 735,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 760,
+                aimY: 285,
+                spawnX: 192,
+                spawnY: 349,
+            },
+        ],
     },
     {
         alias: "Blue B1",
-        cell: "Morale0C",
+        cell: "Morale0A",
         side: "blue",
         role: "brawler",
         neighbors: {
             "Blue B2": "Morale0B",
-            Mid: "Center",
+            Mid: "Crosslower",
         },
+        doors: [
+            {
+                targetAlias: "Blue B2",
+                targetCell: "Morale0B",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 225,
+                yMin: 240,
+                yMax: 400,
+                aimX: 205,
+                aimY: 282,
+                spawnX: 787,
+                spawnY: 350,
+            },
+            {
+                targetAlias: "Mid",
+                targetCell: "Crosslower",
+                targetPad: "Left",
+                xMin: 745,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 765,
+                aimY: 278,
+                spawnX: 186,
+                spawnY: 350,
+            },
+        ],
     },
     {
         alias: "Blue Capt",
@@ -139,9 +286,23 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         side: "blue",
         role: "captain",
         neighbors: {
-            "Blue B3": "Morale0A",
-            "Blue R2": "Resource0B",
+            "Blue B3": "Morale0C",
         },
+        doors: [
+            {
+                targetAlias: "Blue B3",
+                targetCell: "Morale0C",
+                targetPad: "Top",
+                xMin: 360,
+                xMax: 580,
+                yMin: 445,
+                yMax: 530,
+                aimX: 485,
+                aimY: 460,
+                spawnX: 483,
+                spawnY: 472,
+            },
+        ],
     },
     {
         alias: "Blue R2",
@@ -149,9 +310,23 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         side: "blue",
         role: "restorer",
         neighbors: {
-            "Blue Capt": "Captain0",
             "Blue R1": "Resource0A",
         },
+        doors: [
+            {
+                targetAlias: "Blue R1",
+                targetCell: "Resource0A",
+                targetPad: "Left",
+                xMin: 780,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 815,
+                aimY: 280,
+                spawnX: 188,
+                spawnY: 351,
+            },
+        ],
     },
     {
         alias: "Blue R1",
@@ -162,19 +337,88 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
             "Blue R2": "Resource0B",
             Top: "Crossupper",
         },
+        doors: [
+            {
+                targetAlias: "Blue R2",
+                targetCell: "Resource0B",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 235,
+                yMin: 240,
+                yMax: 400,
+                aimX: 215,
+                aimY: 275,
+                spawnX: 785,
+                spawnY: 350,
+            },
+            {
+                targetAlias: "Top",
+                targetCell: "Crossupper",
+                targetPad: "Left",
+                xMin: 755,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 775,
+                aimY: 275,
+                spawnX: 192,
+                spawnY: 351,
+            },
+        ],
     },
 
     // --- CENTER (2 SCREENS) ---
     {
         alias: "Mid",
-        cell: "Center",
+        cell: "Crosslower",
         side: "neutral",
         role: "mid",
         neighbors: {
-            "Blue B1": "Morale0C",
-            "Red B1": "Morale1C",
+            "Blue B1": "Morale0A",
+            "Red B1": "Morale1A",
             Top: "Crossupper",
         },
+        doors: [
+            {
+                targetAlias: "Blue B1",
+                targetCell: "Morale0A",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 230,
+                yMin: 240,
+                yMax: 400,
+                aimX: 210,
+                aimY: 285,
+                spawnX: 789,
+                spawnY: 349,
+            },
+            {
+                targetAlias: "Red B1",
+                targetCell: "Morale1A",
+                targetPad: "Left",
+                xMin: 745,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 765,
+                aimY: 278,
+                spawnX: 186,
+                spawnY: 354,
+            },
+            {
+                targetAlias: "Top",
+                targetCell: "Crossupper",
+                targetPad: "Bottom",
+                xMin: 400,
+                xMax: 530,
+                yMin: 240,
+                yMax: 305,
+                aimX: 465,
+                aimY: 280,
+                spawnX: 488,
+                spawnY: 429,
+            },
+        ],
     },
     {
         alias: "Top",
@@ -184,8 +428,50 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         neighbors: {
             "Blue R1": "Resource0A",
             "Red R1": "Resource1A",
-            Mid: "Center",
+            Mid: "Crosslower",
         },
+        doors: [
+            {
+                targetAlias: "Blue R1",
+                targetCell: "Resource0A",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 230,
+                yMin: 240,
+                yMax: 400,
+                aimX: 215,
+                aimY: 300,
+                spawnX: 785,
+                spawnY: 350,
+            },
+            {
+                targetAlias: "Red R1",
+                targetCell: "Resource1A",
+                targetPad: "Left",
+                xMin: 745,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 770,
+                aimY: 297,
+                spawnX: 185,
+                spawnY: 347,
+            },
+            // Wide horizontal door along the entire bottom edge of Top -> Mid!
+            {
+                targetAlias: "Mid",
+                targetCell: "Crosslower",
+                targetPad: "Middle",
+                xMin: 120,
+                xMax: 900,
+                yMin: 450,
+                yMax: 530,
+                aimX: 485,
+                aimY: 465,
+                spawnX: 490,
+                spawnY: 342,
+            },
+        ],
     },
 
     // --- RED SIDE (RIGHT, 7 SCREENS, MIRRORED) ---
@@ -198,6 +484,34 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
             Top: "Crossupper",
             "Red R2": "Resource1B",
         },
+        doors: [
+            {
+                targetAlias: "Top",
+                targetCell: "Crossupper",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 185,
+                yMin: 240,
+                yMax: 400,
+                aimX: 160,
+                aimY: 295,
+                spawnX: 787,
+                spawnY: 351,
+            },
+            {
+                targetAlias: "Red R2",
+                targetCell: "Resource1B",
+                targetPad: "Left",
+                xMin: 745,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 770,
+                aimY: 280,
+                spawnX: 188,
+                spawnY: 350,
+            },
+        ],
     },
     {
         alias: "Red R2",
@@ -206,8 +520,22 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         role: "restorer",
         neighbors: {
             "Red R1": "Resource1A",
-            "Red Capt": "Captain1",
         },
+        doors: [
+            {
+                targetAlias: "Red R1",
+                targetCell: "Resource1A",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 225,
+                yMin: 240,
+                yMax: 400,
+                aimX: 205,
+                aimY: 280,
+                spawnX: 785,
+                spawnY: 350,
+            },
+        ],
     },
     {
         alias: "Red Capt",
@@ -215,19 +543,61 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         side: "red",
         role: "captain",
         neighbors: {
-            "Red R2": "Resource1B",
-            "Red B3": "Morale1A",
+            "Red B3": "Morale1C",
         },
+        doors: [
+            {
+                targetAlias: "Red B3",
+                targetCell: "Morale1C",
+                targetPad: "Top",
+                xMin: 360,
+                xMax: 580,
+                yMin: 445,
+                yMax: 530,
+                aimX: 410,
+                aimY: 460,
+                spawnX: 409,
+                spawnY: 471,
+            },
+        ],
     },
     {
         alias: "Red B1",
-        cell: "Morale1C",
+        cell: "Morale1A",
         side: "red",
         role: "brawler",
         neighbors: {
-            Mid: "Center",
+            Mid: "Crosslower",
             "Red B2": "Morale1B",
         },
+        doors: [
+            {
+                targetAlias: "Mid",
+                targetCell: "Crosslower",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 230,
+                yMin: 240,
+                yMax: 400,
+                aimX: 210,
+                aimY: 270,
+                spawnX: 787,
+                spawnY: 349,
+            },
+            {
+                targetAlias: "Red B2",
+                targetCell: "Morale1B",
+                targetPad: "Left",
+                xMin: 745,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 765,
+                aimY: 280,
+                spawnX: 190,
+                spawnY: 350,
+            },
+        ],
     },
     {
         alias: "Red B2",
@@ -235,13 +605,41 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
         side: "red",
         role: "brawler",
         neighbors: {
-            "Red B1": "Morale1C",
-            "Red B3": "Morale1A",
+            "Red B1": "Morale1A",
+            "Red B3": "Morale1C",
         },
+        doors: [
+            {
+                targetAlias: "Red B1",
+                targetCell: "Morale1A",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 230,
+                yMin: 240,
+                yMax: 400,
+                aimX: 215,
+                aimY: 288,
+                spawnX: 785,
+                spawnY: 350,
+            },
+            {
+                targetAlias: "Red B3",
+                targetCell: "Morale1C",
+                targetPad: "Left",
+                xMin: 745,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 760,
+                aimY: 286,
+                spawnX: 190,
+                spawnY: 350,
+            },
+        ],
     },
     {
         alias: "Red B3",
-        cell: "Morale1A",
+        cell: "Morale1C",
         side: "red",
         role: "brawler",
         neighbors: {
@@ -249,21 +647,164 @@ export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
             "Red Capt": "Captain1",
             "Red SZ": "Enter1",
         },
+        doors: [
+            {
+                targetAlias: "Red B2",
+                targetCell: "Morale1B",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 235,
+                yMin: 240,
+                yMax: 400,
+                aimX: 220,
+                aimY: 287,
+                spawnX: 785,
+                spawnY: 350,
+            },
+            {
+                targetAlias: "Red Capt",
+                targetCell: "Captain1",
+                targetPad: "Spawn",
+                xMin: 390,
+                xMax: 520,
+                yMin: 220,
+                yMax: 285,
+                aimX: 430,
+                aimY: 275,
+                spawnX: 437,
+                spawnY: 271,
+            },
+            {
+                targetAlias: "Red SZ",
+                targetCell: "Enter1",
+                targetPad: "Left",
+                xMin: 750,
+                xMax: 960,
+                yMin: 240,
+                yMax: 400,
+                aimX: 775,
+                aimY: 280,
+                spawnX: 185,
+                spawnY: 350,
+            },
+        ],
     },
     {
         alias: "Red SZ",
         cell: "Enter1",
         side: "red",
         role: "safezone",
-        neighbors: { "Red B3": "Morale1A" },
+        neighbors: { "Red B3": "Morale1C" },
+        doors: [
+            {
+                targetAlias: "Red B3",
+                targetCell: "Morale1C",
+                targetPad: "Right",
+                xMin: 0,
+                xMax: 220,
+                yMin: 240,
+                yMax: 420,
+                aimX: 195,
+                aimY: 280,
+                spawnX: 785,
+                spawnY: 350,
+            },
+        ],
     },
 ] as const;
 
-/** Movement & Stamina (`intSP`) constants in AQW client (`Game4000r7.swf`). */
+/**
+ * Checks whether a linear walk trajectory from `(x0, y0)` to `(x1, y1)` inside `cell`
+ * intersects any 2D door activation zone (`DoorTriggerArea`) along the path.
+ * Uses the Liang-Barsky line-segment vs AABB intersection algorithm.
+ *
+ * Returns the FIRST door hit along `t in [0, 1]` (if any), preventing accidental
+ * screen transitions when kiting inside a room (and modeling them 1:1 in the simulator).
+ */
+export function checkTrajectoryDoorCollision(
+    cell: string,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+): { door: DoorTriggerArea; hitT: number; hitX: number; hitY: number } | null {
+    const screen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === cell.toLowerCase());
+    if (!screen) return null;
+
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    let bestHit: { door: DoorTriggerArea; hitT: number; hitX: number; hitY: number } | null = null;
+
+    for (const door of screen.doors) {
+        let tMin = 0;
+        let tMax = 1;
+        const p = [-dx, dx, -dy, dy];
+        const q = [x0 - door.xMin, door.xMax - x0, y0 - door.yMin, door.yMax - y0];
+        let intersects = true;
+
+        for (let i = 0; i < 4; i++) {
+            const pi = p[i]!;
+            const qi = q[i]!;
+            if (Math.abs(pi) < 1e-8) {
+                if (qi < 0) {
+                    intersects = false;
+                    break;
+                }
+            } else {
+                const t = qi / pi;
+                if (pi < 0) {
+                    if (t > tMax) {
+                        intersects = false;
+                        break;
+                    }
+                    if (t > tMin) tMin = t;
+                } else {
+                    if (t < tMin) {
+                        intersects = false;
+                        break;
+                    }
+                    if (t < tMax) tMax = t;
+                }
+            }
+        }
+
+        if (intersects && tMin <= tMax) {
+            if (!bestHit || tMin < bestHit.hitT) {
+                bestHit = {
+                    door,
+                    hitT: tMin,
+                    hitX: x0 + dx * tMin,
+                    hitY: y0 + dy * tMin,
+                };
+            }
+        }
+    }
+
+    return bestHit;
+}
+
+/**
+ * Movement, Stamina (`intSP`), and Server Regeneration constants in AQW (`Game4000r7.swf` + server `ct` ticks),
+ * calibrated from `/bludrutbrawl` telemetry (`aqw_combat_telemetry.log`).
+ */
 export const AQW_MAX_STAMINA = 100;
 export const AQW_SPRINT_STAMINA_COST = 50;
 export const AQW_DEFAULT_WALK_SPEED = 8;
 export const AQW_SPRINT_WALK_SPEED = 16;
+
+/** Server regeneration tick interval (~6.0 seconds). */
+export const AQW_SERVER_REGEN_TICK_MS = 6000;
+/** Stamina (`intSP`) restored per 6.0s server tick (+25 SP = 25% of MaxSP). */
+export const AQW_STAMINA_REGEN_PER_TICK = 25;
+/** Passive out-of-combat MP restored on initial non-rest tick (+3 MP = 3% of MaxMP). */
+export const AQW_OOC_PASSIVE_MP_REGEN_PER_TICK = 3;
+/** Out-of-combat / Rest HP & MP restored per 6.0s server tick (+15% MaxHP, +15% MaxMP). */
+export const AQW_OOC_REST_HP_RATIO_PER_TICK = 0.15;
+export const AQW_OOC_REST_MP_REGEN_PER_TICK = 15;
+/** Warrior / Melee Mana Gain in combat: +6 MP on normal Auto Attack hit, +9 MP on Crit Auto Attack, +3 MP when hit. */
+export const AQW_WARRIOR_AA_HIT_MP_GAIN = 6;
+export const AQW_WARRIOR_AA_CRIT_MP_GAIN = 9;
+export const AQW_WARRIOR_ON_HIT_TAKEN_MP_GAIN = 3;
 
 /** Protected NPC keywords in /bludrutbrawl that MUST NOT be killed (mana tap only). */
 export const PROTECTED_NPC_KEYWORDS: readonly string[] = [

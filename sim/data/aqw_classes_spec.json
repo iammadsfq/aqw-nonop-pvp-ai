@@ -22,9 +22,9 @@
         "evasionChance": 0.2253
       },
       "rawSta": {
-        "$tha": 0.1327,
-        "$shb": 0,
+        "$END": 1291,
         "$cai": 0.9,
+        "$shb": 0,
         "$cdi": 1,
         "$DEX": 230,
         "$cmo": 1,
@@ -52,9 +52,9 @@
         "$chi": 1,
         "$smb": 0,
         "_WIS": 76,
+        "$cdo": 1,
         "_STR": 206,
-        "$END": 1291,
-        "$cdo": 1
+        "$tha": 0.1327
       },
       "equippedItems": [
         {
@@ -108,7 +108,7 @@
       ],
       "skills": [
         {
-          "ts": 0,
+          "ts": 1793730950436,
           "fx": "m",
           "nam": "Auto Attack",
           "damage": 1,
@@ -117,6 +117,7 @@
           "lock": false,
           "ref": "aa",
           "cd": 2000,
+          "lastTS": 1793730947152,
           "sArg2": "",
           "anim": "Attack1,Attack2",
           "isOK": true,
@@ -143,6 +144,7 @@
           "ref": "a1",
           "cd": 2000,
           "auto": false,
+          "lastTS": 1793730939635,
           "sArg2": "",
           "anim": "Attack3",
           "isOK": true,
@@ -154,7 +156,7 @@
           "desc": "A powerful strike. Applies Armor Shred to your target, reducing their Damage Resistance by 10% for 5 seconds.",
           "icon": "ims2,iwaxe",
           "sArg1": "",
-          "ts": 0
+          "ts": 1793730947151
         },
         {
           "auras": [
@@ -169,6 +171,7 @@
           "ref": "a2",
           "cd": 10000,
           "auto": false,
+          "lastTS": 0,
           "sArg2": "",
           "anim": "Stab",
           "isOK": true,
@@ -180,7 +183,7 @@
           "desc": "A powerful and precise blow which stuns your target for 3 seconds.",
           "icon": "iss1",
           "sArg1": "",
-          "ts": 0
+          "ts": 1793730937860
         },
         {
           "auras": [
@@ -192,6 +195,7 @@
           "actID": -1,
           "lock": false,
           "auto": false,
+          "lastTS": 0,
           "ref": "a3",
           "cd": 12000,
           "sArg2": "",
@@ -205,7 +209,7 @@
           "desc": "Empower your weapon, causing your next two Auto Attacks to be unavoidable critical hits. If On Guard was active at the time of application, the Auto Attacks will deal double damage. ",
           "icon": "imd1,iwsword",
           "sArg1": "",
-          "ts": 0
+          "ts": 1793730941073
         },
         {
           "auras": [
@@ -220,6 +224,7 @@
           "ref": "a4",
           "tgtMax": 1,
           "cd": 10000,
+          "lastTS": 0,
           "sArg2": "",
           "anim": "ShieldBlock",
           "isOK": true,
@@ -229,6 +234,258 @@
           "id": 2194,
           "mp": 15,
           "desc": "Take a defensive stance. Applies On Guard, increasing your Damage Resistance by 50% for 5 seconds.",
+          "icon": "iwshield",
+          "sArg1": "",
+          "ts": 1793730945665
+        },
+        {
+          "strl": "",
+          "fx": "",
+          "nam": "Potions",
+          "actID": -1,
+          "lock": false,
+          "ref": "i1",
+          "cd": 60000,
+          "sArg2": "",
+          "anim": "Cheer",
+          "isOK": true,
+          "tgt": "f",
+          "range": 808,
+          "typ": "i",
+          "mp": 0,
+          "auto": false,
+          "desc": "Equip a potion or scroll from your inventory to use it here.",
+          "icon": "icu1",
+          "sArg1": "",
+          "ts": 0
+        }
+      ]
+    },
+    "Battle Warrior": {
+      "className": "Battle Warrior",
+      "level": 100,
+      "maxHealth": 8455,
+      "maxMana": 100,
+      "walkSpeed": 8,
+      "wDPS": 163,
+      "computedStats": {
+        "haste": 0.1327,
+        "strength": 268,
+        "wisdom": 138,
+        "dexterity": 230,
+        "endurance": 1291,
+        "intellect": 100,
+        "luck": 355,
+        "attackPower": 784,
+        "spellPower": 200,
+        "criticalChance": 0.2763,
+        "criticalMultiplier": 3.754,
+        "evasionChance": 0.2253
+      },
+      "rawSta": {
+        "$tha": 0.1327,
+        "$shb": 0,
+        "$cai": 0.9,
+        "$cdi": 1,
+        "$DEX": 230,
+        "$cmo": 1,
+        "$cpi": 1,
+        "$tdo": 0.2253,
+        "$cao": 1,
+        "$cho": 1,
+        "$STR": 268,
+        "_LCK": 46,
+        "$cmc": 1,
+        "$tcr": 0.2763,
+        "_DEX": 168,
+        "$INT": 100,
+        "$WIS": 138,
+        "$LCK": 355,
+        "$thi": 0.1035,
+        "$cmi": 0.873,
+        "$scm": 3.754,
+        "$cpo": 1.1,
+        "$dsh": 50,
+        "$sp": 200,
+        "$ap": 784,
+        "_INT": 38,
+        "_END": 229,
+        "$chi": 1,
+        "$smb": 0,
+        "_WIS": 76,
+        "_STR": 206,
+        "$END": 1291,
+        "$cdo": 1
+      },
+      "equippedItems": [
+        {
+          "id": 53306,
+          "name": "Crystallis Overdrive",
+          "category": "Cape",
+          "equipSlot": "ba",
+          "enhancementLevel": 100,
+          "enhancementPatternId": 9
+        },
+        {
+          "id": 25150,
+          "name": "1st Betrayal Blade of Nulgath",
+          "category": "Sword",
+          "equipSlot": "Weapon",
+          "enhancementLevel": 100,
+          "enhancementPatternId": 9
+        },
+        {
+          "id": 40086,
+          "name": "Platinum PvP Amulet +5000",
+          "category": "Necklace",
+          "equipSlot": "am",
+          "enhancementLevel": 0,
+          "enhancementPatternId": 0
+        },
+        {
+          "id": 53778,
+          "name": "Harlequin Warrior",
+          "category": "Armor",
+          "equipSlot": "co",
+          "enhancementLevel": 0,
+          "enhancementPatternId": 0
+        },
+        {
+          "id": 63820,
+          "name": "Alchemical Commander's Veil + Locks",
+          "category": "Helm",
+          "equipSlot": "he",
+          "enhancementLevel": 100,
+          "enhancementPatternId": 9
+        },
+        {
+          "id": 82486,
+          "name": "Battle Warrior",
+          "category": "Class",
+          "equipSlot": "ar",
+          "enhancementLevel": 100,
+          "enhancementPatternId": 9
+        }
+      ],
+      "skills": [
+        {
+          "ts": 0,
+          "fx": "m",
+          "nam": "Auto Attack",
+          "damage": 1,
+          "dsrc": "AP2",
+          "actID": -1,
+          "lock": false,
+          "ref": "aa",
+          "cd": 2000,
+          "sArg2": "",
+          "anim": "Attack1,Attack2",
+          "isOK": true,
+          "tgt": "h",
+          "range": 301,
+          "typ": "aa",
+          "id": 2210,
+          "mp": 0,
+          "desc": "A basic attack, taught to all adventurers. Damage dealt is based on your weapon damage.",
+          "icon": "iwd1",
+          "auto": true,
+          "sArg1": ""
+        },
+        {
+          "lock": false,
+          "fx": "m",
+          "nam": "Decisive Strike",
+          "damage": 1.9,
+          "dsrc": "AP2",
+          "actID": -1,
+          "auto": false,
+          "ref": "a1",
+          "cd": 2000,
+          "sArg2": "",
+          "anim": "Attack3",
+          "isOK": true,
+          "tgt": "h",
+          "range": 301,
+          "typ": "p",
+          "id": 198,
+          "mp": 15,
+          "desc": "A powerful strike, dealing 190% weapon damage.",
+          "icon": "ims2,iwaxe",
+          "sArg1": "",
+          "ts": 0
+        },
+        {
+          "auras": [
+            {}
+          ],
+          "fx": "m",
+          "nam": "Imbalancing Strike",
+          "damage": 0.6,
+          "dsrc": "AP2",
+          "actID": -1,
+          "lock": false,
+          "ref": "a2",
+          "cd": 10000,
+          "auto": false,
+          "sArg2": "",
+          "anim": "Stab",
+          "isOK": true,
+          "tgt": "h",
+          "range": 301,
+          "typ": "p",
+          "id": 199,
+          "mp": 30,
+          "desc": "A precise blow which stuns your opponent for 4 seconds.",
+          "icon": "iss1",
+          "sArg1": "",
+          "ts": 0
+        },
+        {
+          "auras": [
+            {}
+          ],
+          "fx": "m",
+          "nam": "Prepared Strike",
+          "actID": -1,
+          "lock": false,
+          "auto": false,
+          "ref": "a3",
+          "cd": 15000,
+          "sArg2": "",
+          "anim": "Point",
+          "isOK": true,
+          "tgt": "s",
+          "range": 301,
+          "typ": "p",
+          "id": 200,
+          "mp": 20,
+          "desc": "Your next two auto attacks taken within 5 seconds will be powerful critical hits which cannot be avoided.",
+          "icon": "imd1,iwsword",
+          "sArg1": "",
+          "ts": 0
+        },
+        {
+          "auras": [
+            {}
+          ],
+          "fx": "m",
+          "nam": "On Guard",
+          "damage": 0.75,
+          "dsrc": "AP2",
+          "actID": -1,
+          "lock": false,
+          "ref": "a4",
+          "cd": 30000,
+          "auto": false,
+          "sArg2": "",
+          "anim": "Attack4",
+          "isOK": true,
+          "tgt": "h",
+          "range": 301,
+          "typ": "p",
+          "id": 201,
+          "mp": 30,
+          "desc": "Challenge your opponent, dealing damage while reducing your incoming damage by 50% for 10 seconds.",
           "icon": "iwshield",
           "sArg1": "",
           "ts": 0
@@ -260,7 +517,7 @@
   "aurasCatalog": {
     "Off Balance": {
       "name": "Off Balance",
-      "duration": 3,
+      "duration": 4,
       "category": "stun",
       "type": "s",
       "value": null
@@ -274,32 +531,1946 @@
     },
     "Prepared Strike": {
       "name": "Prepared Strike",
-      "duration": 10,
+      "duration": 5,
       "category": null,
       "type": "s",
-      "value": 1
+      "value": 1.15
     },
     "On Guard": {
       "name": "On Guard",
-      "duration": 5,
+      "duration": 10,
       "category": null,
       "type": "s",
       "value": null
     }
   },
-  "mapSnapshots": {},
-  "doorTransitions": {},
+  "mapSnapshots": {
+    "bludrutbrawl": {
+      "mapName": "bludrutbrawl",
+      "fullName": "bludrutbrawl-99999",
+      "roomId": 238730,
+      "cells": [
+        "Wait",
+        "Captain0",
+        "Morale0C",
+        "Enter0",
+        "Morale0B",
+        "Morale0A",
+        "Resource0B",
+        "Resource0A",
+        "Crosslower",
+        "Crossupper",
+        "Resource1A",
+        "Resource1B",
+        "Morale1A",
+        "Morale1B",
+        "Enter1",
+        "Morale1C",
+        "Captain1",
+        "Blank"
+      ],
+      "monsters": [
+        {
+          "id": 308,
+          "mapId": 1,
+          "name": "Team A Captain",
+          "race": "None",
+          "cell": "Captain0",
+          "hp": 15000,
+          "maxHp": 15000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 310,
+          "mapId": 2,
+          "name": "(A) Brawler",
+          "race": "None",
+          "cell": "Morale0C",
+          "hp": 10000,
+          "maxHp": 10000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 310,
+          "mapId": 3,
+          "name": "(A) Brawler",
+          "race": "None",
+          "cell": "Morale0B",
+          "hp": 10000,
+          "maxHp": 10000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 310,
+          "mapId": 4,
+          "name": "(A) Brawler",
+          "race": "None",
+          "cell": "Morale0A",
+          "hp": 10000,
+          "maxHp": 10000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 312,
+          "mapId": 5,
+          "name": "(A) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource0B",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 312,
+          "mapId": 6,
+          "name": "(A) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource0B",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 312,
+          "mapId": 7,
+          "name": "(A) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource0A",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 312,
+          "mapId": 8,
+          "name": "(A) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource0A",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 313,
+          "mapId": 9,
+          "name": "(B) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource1A",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 313,
+          "mapId": 10,
+          "name": "(B) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource1A",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 313,
+          "mapId": 11,
+          "name": "(B) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource1B",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 313,
+          "mapId": 12,
+          "name": "(B) Defensive Restorer",
+          "race": "None",
+          "cell": "Resource1B",
+          "hp": 5000,
+          "maxHp": 5000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 311,
+          "mapId": 13,
+          "name": "(B) Brawler",
+          "race": "None",
+          "cell": "Morale1A",
+          "hp": 10000,
+          "maxHp": 10000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 311,
+          "mapId": 14,
+          "name": "(B) Brawler",
+          "race": "None",
+          "cell": "Morale1B",
+          "hp": 10000,
+          "maxHp": 10000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 311,
+          "mapId": 15,
+          "name": "(B) Brawler",
+          "race": "None",
+          "cell": "Morale1C",
+          "hp": 10000,
+          "maxHp": 10000,
+          "state": 1,
+          "level": 0
+        },
+        {
+          "id": 309,
+          "mapId": 16,
+          "name": "Team B Captain",
+          "race": "None",
+          "cell": "Captain1",
+          "hp": 15000,
+          "maxHp": 15000,
+          "state": 1,
+          "level": 0
+        }
+      ]
+    },
+    "house": {
+      "mapName": "house",
+      "fullName": "house-69198275",
+      "roomId": 238572,
+      "cells": [
+        "Wait",
+        "Enter",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "Blank"
+      ],
+      "monsters": []
+    }
+  },
+  "doorTransitions": {
+    "Enter0->Morale0C": [
+      {
+        "fromCell": "Enter0",
+        "fromPad": "Spawn",
+        "exitX": 759.95,
+        "exitY": 269.5,
+        "toCell": "Morale0C",
+        "toPad": "Left",
+        "spawnX": 771.4,
+        "spawnY": 267.4
+      },
+      {
+        "fromCell": "Enter0",
+        "fromPad": "Right",
+        "exitX": 762.9,
+        "exitY": 255,
+        "toCell": "Morale0C",
+        "toPad": "Left",
+        "spawnX": 773.8,
+        "spawnY": 255
+      },
+      {
+        "fromCell": "Enter0",
+        "fromPad": "Spawn",
+        "exitX": 773.8,
+        "exitY": 268.6,
+        "toCell": "Morale0C",
+        "toPad": "Left",
+        "spawnX": 173,
+        "spawnY": 342
+      },
+      {
+        "fromCell": "Enter0",
+        "fromPad": "Right",
+        "exitX": 772.8,
+        "exitY": 298.7,
+        "toCell": "Morale0C",
+        "toPad": "Left",
+        "spawnX": 778,
+        "spawnY": 288.85
+      }
+    ],
+    "Morale0C->Morale0B": [
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Left",
+        "exitX": 758,
+        "exitY": 279.8,
+        "toCell": "Morale0B",
+        "toPad": "Left",
+        "spawnX": 791.5,
+        "spawnY": 275.75
+      },
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Left",
+        "exitX": 758.6,
+        "exitY": 273.1,
+        "toCell": "Morale0B",
+        "toPad": "Left",
+        "spawnX": 769.35,
+        "spawnY": 271.3
+      },
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Top",
+        "exitX": 770.4,
+        "exitY": 267.75,
+        "toCell": "Morale0B",
+        "toPad": "Left",
+        "spawnX": 191,
+        "spawnY": 352
+      },
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Top",
+        "exitX": 767.8,
+        "exitY": 278.5,
+        "toCell": "Morale0B",
+        "toPad": "Left",
+        "spawnX": 778.25,
+        "spawnY": 277.15
+      }
+    ],
+    "Morale0B->Morale0A": [
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Left",
+        "exitX": 739.7,
+        "exitY": 282.8,
+        "toCell": "Morale0A",
+        "toPad": "Left",
+        "spawnX": 791.5,
+        "spawnY": 276.25
+      },
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Left",
+        "exitX": 836,
+        "exitY": 298,
+        "toCell": "Morale0A",
+        "toPad": "Left",
+        "spawnX": 192,
+        "spawnY": 349
+      },
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Right",
+        "exitX": 827.15,
+        "exitY": 304.4,
+        "toCell": "Morale0A",
+        "toPad": "Left",
+        "spawnX": 838.7,
+        "spawnY": 290.45
+      },
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Left",
+        "exitX": 746.25,
+        "exitY": 289.45,
+        "toCell": "Morale0A",
+        "toPad": "Left",
+        "spawnX": 797.15,
+        "spawnY": 283.7
+      },
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Left",
+        "exitX": 754.8,
+        "exitY": 278.55,
+        "toCell": "Morale0A",
+        "toPad": "Left",
+        "spawnX": 772.45,
+        "spawnY": 276.45
+      }
+    ],
+    "Morale0A->Crosslower": [
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Left",
+        "exitX": 758.15,
+        "exitY": 275.4,
+        "toCell": "Crosslower",
+        "toPad": "Left",
+        "spawnX": 769.85,
+        "spawnY": 274.1
+      },
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Left",
+        "exitX": 752.3,
+        "exitY": 277.55,
+        "toCell": "Crosslower",
+        "toPad": "Left",
+        "spawnX": 770.1,
+        "spawnY": 275.3
+      },
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Left",
+        "exitX": 765.15,
+        "exitY": 269,
+        "toCell": "Crosslower",
+        "toPad": "Left",
+        "spawnX": 780.85,
+        "spawnY": 266.75
+      },
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Left",
+        "exitX": 764.45,
+        "exitY": 292.2,
+        "toCell": "Crosslower",
+        "toPad": "Left",
+        "spawnX": 775.1,
+        "spawnY": 291.25
+      },
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Left",
+        "exitX": 762.25,
+        "exitY": 275.4,
+        "toCell": "Crosslower",
+        "toPad": "Left",
+        "spawnX": 773.05,
+        "spawnY": 273.95
+      }
+    ],
+    "Crosslower->Morale0A": [
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Left",
+        "exitX": 226.15,
+        "exitY": 282.85,
+        "toCell": "Morale0A",
+        "toPad": "Right",
+        "spawnX": 203.7,
+        "spawnY": 280.75
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Middle",
+        "exitX": 213.3,
+        "exitY": 298.55,
+        "toCell": "Morale0A",
+        "toPad": "Right",
+        "spawnX": 203.65,
+        "spawnY": 293.85
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Right",
+        "exitX": 213,
+        "exitY": 280.35,
+        "toCell": "Morale0A",
+        "toPad": "Right",
+        "spawnX": 789,
+        "spawnY": 349
+      }
+    ],
+    "Morale0A->Morale0B": [
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Right",
+        "exitX": 216.05,
+        "exitY": 280.7,
+        "toCell": "Morale0B",
+        "toPad": "Right",
+        "spawnX": 205.4,
+        "spawnY": 279.35
+      },
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Right",
+        "exitX": 213.45,
+        "exitY": 284.5,
+        "toCell": "Morale0B",
+        "toPad": "Right",
+        "spawnX": 208.6,
+        "spawnY": 283.95
+      },
+      {
+        "fromCell": "Morale0A",
+        "fromPad": "Right",
+        "exitX": 214.85,
+        "exitY": 282.4,
+        "toCell": "Morale0B",
+        "toPad": "Right",
+        "spawnX": 203.8,
+        "spawnY": 281.1
+      }
+    ],
+    "Morale0B->Morale0C": [
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Right",
+        "exitX": 214.55,
+        "exitY": 267.75,
+        "toCell": "Morale0C",
+        "toPad": "Right",
+        "spawnX": 787,
+        "spawnY": 354
+      },
+      {
+        "fromCell": "Morale0B",
+        "fromPad": "Right",
+        "exitX": 219.15,
+        "exitY": 283.3,
+        "toCell": "Morale0C",
+        "toPad": "Right",
+        "spawnX": 207.45,
+        "spawnY": 281.9
+      }
+    ],
+    "Morale0C->Enter0": [
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Right",
+        "exitX": 145.5,
+        "exitY": 288.45,
+        "toCell": "Enter0",
+        "toPad": "Right",
+        "spawnX": 789,
+        "spawnY": 354
+      },
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Left",
+        "exitX": 215.95,
+        "exitY": 255,
+        "toCell": "Enter0",
+        "toPad": "Right",
+        "spawnX": 789,
+        "spawnY": 351
+      }
+    ],
+    "Crosslower->Crossupper": [
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Left",
+        "exitX": 434.45,
+        "exitY": 277,
+        "toCell": "Crossupper",
+        "toPad": "Bottom",
+        "spawnX": 486,
+        "spawnY": 429
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Left",
+        "exitX": 439.75,
+        "exitY": 268.7,
+        "toCell": "Crossupper",
+        "toPad": "Bottom",
+        "spawnX": 489,
+        "spawnY": 428
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Left",
+        "exitX": 419.9,
+        "exitY": 277.6,
+        "toCell": "Crossupper",
+        "toPad": "Bottom",
+        "spawnX": 443.55,
+        "spawnY": 270.1
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Middle",
+        "exitX": 473,
+        "exitY": 288.7,
+        "toCell": "Crossupper",
+        "toPad": "Bottom",
+        "spawnX": 490,
+        "spawnY": 431
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Middle",
+        "exitX": 494.8,
+        "exitY": 301.85,
+        "toCell": "Crossupper",
+        "toPad": "Bottom",
+        "spawnX": 495.9,
+        "spawnY": 285.7
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Middle",
+        "exitX": 483.6,
+        "exitY": 300.35,
+        "toCell": "Crossupper",
+        "toPad": "Bottom",
+        "spawnX": 481,
+        "spawnY": 284.2
+      }
+    ],
+    "Crossupper->Resource0A": [
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Bottom",
+        "exitX": 217.55,
+        "exitY": 300.3,
+        "toCell": "Resource0A",
+        "toPad": "Right",
+        "spawnX": 207.9,
+        "spawnY": 295.7
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Bottom",
+        "exitX": 223.3,
+        "exitY": 301.4,
+        "toCell": "Resource0A",
+        "toPad": "Right",
+        "spawnX": 201.7,
+        "spawnY": 291
+      }
+    ],
+    "Resource0A->Resource0B": [
+      {
+        "fromCell": "Resource0A",
+        "fromPad": "Right",
+        "exitX": 230.55,
+        "exitY": 270.2,
+        "toCell": "Resource0B",
+        "toPad": "Right",
+        "spawnX": 212.8,
+        "spawnY": 267.65
+      },
+      {
+        "fromCell": "Resource0A",
+        "fromPad": "Right",
+        "exitX": 213.9,
+        "exitY": 276.05,
+        "toCell": "Resource0B",
+        "toPad": "Right",
+        "spawnX": 208.65,
+        "spawnY": 275.35
+      }
+    ],
+    "Resource0B->Resource0A": [
+      {
+        "fromCell": "Resource0B",
+        "fromPad": "Right",
+        "exitX": 805.45,
+        "exitY": 289.65,
+        "toCell": "Resource0A",
+        "toPad": "Left",
+        "spawnX": 185,
+        "spawnY": 350
+      },
+      {
+        "fromCell": "Resource0B",
+        "fromPad": "Right",
+        "exitX": 840,
+        "exitY": 273.35,
+        "toCell": "Resource0A",
+        "toPad": "Left",
+        "spawnX": 192,
+        "spawnY": 352
+      }
+    ],
+    "Resource0A->Crossupper": [
+      {
+        "fromCell": "Resource0A",
+        "fromPad": "Left",
+        "exitX": 770.25,
+        "exitY": 283.4,
+        "toCell": "Crossupper",
+        "toPad": "Left",
+        "spawnX": 192,
+        "spawnY": 351
+      },
+      {
+        "fromCell": "Resource0A",
+        "fromPad": "Left",
+        "exitX": 781.4,
+        "exitY": 264,
+        "toCell": "Crossupper",
+        "toPad": "Left",
+        "spawnX": 813.25,
+        "spawnY": 259.25
+      }
+    ],
+    "Crossupper->Crosslower": [
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Left",
+        "exitX": 437.6,
+        "exitY": 460.8,
+        "toCell": "Crosslower",
+        "toPad": "Middle",
+        "spawnX": 448.2,
+        "spawnY": 465.55
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Bottom",
+        "exitX": 162.8,
+        "exitY": 471.15,
+        "toCell": "Crosslower",
+        "toPad": "Middle",
+        "spawnX": 490,
+        "spawnY": 342
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Left",
+        "exitX": 201.2,
+        "exitY": 471.8,
+        "toCell": "Crosslower",
+        "toPad": "Middle",
+        "spawnX": 491,
+        "spawnY": 340
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Bottom",
+        "exitX": 778.2,
+        "exitY": 463,
+        "toCell": "Crosslower",
+        "toPad": "Middle",
+        "spawnX": 790,
+        "spawnY": 463.8
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Bottom",
+        "exitX": 875.05,
+        "exitY": 455.45,
+        "toCell": "Crosslower",
+        "toPad": "Middle",
+        "spawnX": 891.6,
+        "spawnY": 472.95
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Right",
+        "exitX": 746.35,
+        "exitY": 462.25,
+        "toCell": "Crosslower",
+        "toPad": "Middle",
+        "spawnX": 740.4,
+        "spawnY": 478.8
+      }
+    ],
+    "Crosslower->Morale1A": [
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Middle",
+        "exitX": 759.05,
+        "exitY": 270.55,
+        "toCell": "Morale1A",
+        "toPad": "Left",
+        "spawnX": 769.8,
+        "spawnY": 267.9
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Middle",
+        "exitX": 771.2,
+        "exitY": 283.95,
+        "toCell": "Morale1A",
+        "toPad": "Left",
+        "spawnX": 186,
+        "spawnY": 354
+      },
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Right",
+        "exitX": 759.7,
+        "exitY": 269.4,
+        "toCell": "Morale1A",
+        "toPad": "Left",
+        "spawnX": 777.85,
+        "spawnY": 273.8
+      }
+    ],
+    "Morale1A->Crosslower": [
+      {
+        "fromCell": "Morale1A",
+        "fromPad": "Left",
+        "exitX": 145.55,
+        "exitY": 293.65,
+        "toCell": "Crosslower",
+        "toPad": "Right",
+        "spawnX": 787,
+        "spawnY": 349
+      },
+      {
+        "fromCell": "Morale1A",
+        "fromPad": "Right",
+        "exitX": 211.15,
+        "exitY": 266.05,
+        "toCell": "Crosslower",
+        "toPad": "Right",
+        "spawnX": 205.65,
+        "spawnY": 267.25
+      },
+      {
+        "fromCell": "Morale1A",
+        "fromPad": "Left",
+        "exitX": 226.5,
+        "exitY": 269.65,
+        "toCell": "Crosslower",
+        "toPad": "Right",
+        "spawnX": 205.35,
+        "spawnY": 283.95
+      }
+    ],
+    "Morale0C->Captain0": [
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Right",
+        "exitX": 510.65,
+        "exitY": 277.25,
+        "toCell": "Captain0",
+        "toPad": "Spawn",
+        "spawnX": 499.8,
+        "spawnY": 273.45
+      },
+      {
+        "fromCell": "Morale0C",
+        "fromPad": "Left",
+        "exitX": 420.1,
+        "exitY": 277.8,
+        "toCell": "Captain0",
+        "toPad": "Spawn",
+        "spawnX": 435.9,
+        "spawnY": 270.1
+      }
+    ],
+    "Captain0->Morale0C": [
+      {
+        "fromCell": "Captain0",
+        "fromPad": "Spawn",
+        "exitX": 511.35,
+        "exitY": 455.65,
+        "toCell": "Morale0C",
+        "toPad": "Top",
+        "spawnX": 520,
+        "spawnY": 470
+      },
+      {
+        "fromCell": "Captain0",
+        "fromPad": "Spawn",
+        "exitX": 484.25,
+        "exitY": 456.25,
+        "toCell": "Morale0C",
+        "toPad": "Top",
+        "spawnX": 482.65,
+        "spawnY": 471.65
+      }
+    ],
+    "Crosslower->Enter": [
+      {
+        "fromCell": "Crosslower",
+        "fromPad": "Left",
+        "exitX": 604.45,
+        "exitY": 402.55,
+        "toCell": "Enter",
+        "toPad": "Spawn",
+        "spawnX": 499,
+        "spawnY": 472
+      }
+    ],
+    "Crossupper->Resource1A": [
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Bottom",
+        "exitX": 759.75,
+        "exitY": 295.65,
+        "toCell": "Resource1A",
+        "toPad": "Left",
+        "spawnX": 773.75,
+        "spawnY": 292.15
+      },
+      {
+        "fromCell": "Crossupper",
+        "fromPad": "Right",
+        "exitX": 791.4,
+        "exitY": 298.2,
+        "toCell": "Resource1A",
+        "toPad": "Left",
+        "spawnX": 185,
+        "spawnY": 347
+      }
+    ],
+    "Resource1A->Crossupper": [
+      {
+        "fromCell": "Resource1A",
+        "fromPad": "Left",
+        "exitX": 159.6,
+        "exitY": 292.25,
+        "toCell": "Crossupper",
+        "toPad": "Right",
+        "spawnX": 787,
+        "spawnY": 351
+      },
+      {
+        "fromCell": "Resource1A",
+        "fromPad": "Left",
+        "exitX": 158.6,
+        "exitY": 302.85,
+        "toCell": "Crossupper",
+        "toPad": "Right",
+        "spawnX": 149.7,
+        "spawnY": 287.9
+      }
+    ],
+    "Morale1A->Morale1B": [
+      {
+        "fromCell": "Morale1A",
+        "fromPad": "Left",
+        "exitX": 762.85,
+        "exitY": 280.25,
+        "toCell": "Morale1B",
+        "toPad": "Left",
+        "spawnX": 784.55,
+        "spawnY": 275.65
+      }
+    ],
+    "Morale1B->Morale1C": [
+      {
+        "fromCell": "Morale1B",
+        "fromPad": "Left",
+        "exitX": 756.2,
+        "exitY": 285.5,
+        "toCell": "Morale1C",
+        "toPad": "Left",
+        "spawnX": 785.25,
+        "spawnY": 279.85
+      }
+    ],
+    "Morale1C->Captain1": [
+      {
+        "fromCell": "Morale1C",
+        "fromPad": "Left",
+        "exitX": 421.55,
+        "exitY": 278.15,
+        "toCell": "Captain1",
+        "toPad": "Spawn",
+        "spawnX": 436.9,
+        "spawnY": 271.05
+      }
+    ],
+    "Captain1->Morale1C": [
+      {
+        "fromCell": "Captain1",
+        "fromPad": "Spawn",
+        "exitX": 397.45,
+        "exitY": 457.65,
+        "toCell": "Morale1C",
+        "toPad": "Top",
+        "spawnX": 408.85,
+        "spawnY": 471
+      }
+    ],
+    "Morale1C->Morale1B": [
+      {
+        "fromCell": "Morale1C",
+        "fromPad": "Top",
+        "exitX": 227.6,
+        "exitY": 287.3,
+        "toCell": "Morale1B",
+        "toPad": "Right",
+        "spawnX": 197.7,
+        "spawnY": 286.6
+      }
+    ],
+    "Morale1B->Morale1A": [
+      {
+        "fromCell": "Morale1B",
+        "fromPad": "Right",
+        "exitX": 222,
+        "exitY": 287.75,
+        "toCell": "Morale1A",
+        "toPad": "Right",
+        "spawnX": 204.5,
+        "spawnY": 285.9
+      }
+    ]
+  },
   "regenSamplesCount": {
-    "in_combat": 0,
-    "out_of_combat": 0
+    "in_combat": 23,
+    "out_of_combat": 40
   },
   "regenSamplesPreview": {
-    "in_combat": [],
-    "out_of_combat": []
+    "in_combat": [
+      {
+        "dtMs": 4107,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8227,
+        "maxHp": 8455,
+        "deltaHp": -228,
+        "mp": 82,
+        "maxMp": 100,
+        "deltaMp": -18,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1573,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8227,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 58,
+        "maxMp": 100,
+        "deltaMp": -24,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1554,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8227,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 38,
+        "maxMp": 100,
+        "deltaMp": -20,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 272,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8227,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 47,
+        "maxMp": 100,
+        "deltaMp": 9,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 3072,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8025,
+        "maxHp": 8455,
+        "deltaHp": -202,
+        "mp": 50,
+        "maxMp": 100,
+        "deltaMp": 3,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1301,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8025,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 44,
+        "maxMp": 100,
+        "deltaMp": -6,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 319,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7588,
+        "maxHp": 8455,
+        "deltaHp": -437,
+        "mp": 50,
+        "maxMp": 100,
+        "deltaMp": 6,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 5740,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 4437,
+        "maxHp": 8455,
+        "deltaHp": -3151,
+        "mp": 53,
+        "maxMp": 100,
+        "deltaMp": 3,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 2332,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 2959,
+        "maxHp": 8455,
+        "deltaHp": -1478,
+        "mp": 41,
+        "maxMp": 100,
+        "deltaMp": -12,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1036,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 2959,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 44,
+        "maxMp": 100,
+        "deltaMp": 3,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 288,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 2959,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 24,
+        "maxMp": 100,
+        "deltaMp": -20,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 460,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 2495,
+        "maxHp": 8455,
+        "deltaHp": -464,
+        "mp": 21,
+        "maxMp": 100,
+        "deltaMp": 3,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 3713,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 75,
+        "maxMp": 100,
+        "deltaMp": -24,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1531,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 60,
+        "maxMp": 100,
+        "deltaMp": -15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 238,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 69,
+        "maxMp": 100,
+        "deltaMp": 9,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1960,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 54,
+        "maxMp": 100,
+        "deltaMp": -15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 827,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 60,
+        "maxMp": 100,
+        "deltaMp": 6,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 414,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7993,
+        "maxHp": 8455,
+        "deltaHp": -462,
+        "mp": 63,
+        "maxMp": 100,
+        "deltaMp": 3,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 853,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7993,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 48,
+        "maxMp": 100,
+        "deltaMp": -15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 331,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7993,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 57,
+        "maxMp": 100,
+        "deltaMp": 9,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 1409,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7520,
+        "maxHp": 8455,
+        "deltaHp": -473,
+        "mp": 63,
+        "maxMp": 100,
+        "deltaMp": 6,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 196,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7520,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 48,
+        "maxMp": 100,
+        "deltaMp": -15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 243,
+        "inCombat": true,
+        "state": 2,
+        "timeSinceCombatExitMs": 0,
+        "hp": 7520,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 54,
+        "maxMp": 100,
+        "deltaMp": 6,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      }
+    ],
+    "out_of_combat": [
+      {
+        "dtMs": 3050,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 3050,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 1513,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 4563,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 0,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 4479,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 9042,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 25,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6069,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 15111,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6125,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 21236,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6111,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 27347,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 19171,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 46518,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 995,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 47513,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 0,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 4306,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 51819,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 25,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 5950,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 57769,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6179,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 63948,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6202,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 70150,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 46033,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 116183,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 5820,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 122003,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 3599,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 125602,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 25,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 2517,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 128119,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6062,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 134181,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 4422,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 138603,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 90,
+        "maxMp": 100,
+        "deltaMp": -10,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 2976,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 141579,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 90,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 25,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 4835,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 146414,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 10,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 3092,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 149506,
+        "hp": 3455,
+        "maxHp": 3455,
+        "deltaHp": -5000,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 26731,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 26731,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 2530,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 29261,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 0,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 2656,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 31917,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 25,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6076,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 37993,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6064,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 44057,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6128,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 50185,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 26633,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 76818,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 544,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 77362,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 0,
+        "maxSp": 100,
+        "deltaSp": -50
+      },
+      {
+        "dtMs": 5388,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 82750,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 25,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6139,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 88889,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 50,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6041,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 94930,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 75,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 6192,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 101122,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 100,
+        "maxMp": 100,
+        "deltaMp": 0,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 25
+      },
+      {
+        "dtMs": 2417,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 878,
+        "hp": 2959,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 18,
+        "maxMp": 100,
+        "deltaMp": -6,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 5998,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 4239,
+        "hp": 2495,
+        "maxHp": 8455,
+        "deltaHp": 0,
+        "mp": 24,
+        "maxMp": 100,
+        "deltaMp": 3,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 7078,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 11317,
+        "hp": 3764,
+        "maxHp": 8455,
+        "deltaHp": 1269,
+        "mp": 39,
+        "maxMp": 100,
+        "deltaMp": 15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 6032,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 17349,
+        "hp": 5033,
+        "maxHp": 8455,
+        "deltaHp": 1269,
+        "mp": 54,
+        "maxMp": 100,
+        "deltaMp": 15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 6229,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 23578,
+        "hp": 6302,
+        "maxHp": 8455,
+        "deltaHp": 1269,
+        "mp": 69,
+        "maxMp": 100,
+        "deltaMp": 15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 6129,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 29707,
+        "hp": 7571,
+        "maxHp": 8455,
+        "deltaHp": 1269,
+        "mp": 84,
+        "maxMp": 100,
+        "deltaMp": 15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      },
+      {
+        "dtMs": 6127,
+        "inCombat": false,
+        "state": 1,
+        "timeSinceCombatExitMs": 35834,
+        "hp": 8455,
+        "maxHp": 8455,
+        "deltaHp": 884,
+        "mp": 99,
+        "maxMp": 100,
+        "deltaMp": 15,
+        "sp": 100,
+        "maxSp": 100,
+        "deltaSp": 0
+      }
+    ]
   },
-  "movementSamplesCount": 0,
+  "movementSamplesCount": 219,
   "combatSamplesCount": {
-    "Warrior": 9
+    "Warrior": 10,
+    "Battle Warrior": 25
   },
   "combatSamplesPreview": {
     "Warrior": [
@@ -346,6 +2517,138 @@
       {
         "hp_damage": 2703,
         "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 0,
+        "hit_type": "none",
+        "action_ref": "a3"
+      }
+    ],
+    "Battle Warrior": [
+      {
+        "hp_damage": 393,
+        "hit_type": "hit",
+        "action_ref": "a4"
+      },
+      {
+        "hp_damage": 476,
+        "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 307,
+        "hit_type": "hit",
+        "action_ref": "a2"
+      },
+      {
+        "hp_damage": 231,
+        "hit_type": "hit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 0,
+        "hit_type": "none",
+        "action_ref": "a3"
+      },
+      {
+        "hp_damage": 529,
+        "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 3938,
+        "hit_type": "crit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 168,
+        "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 0,
+        "hit_type": "dodge",
+        "action_ref": "a2"
+      },
+      {
+        "hp_damage": 0,
+        "hit_type": "dodge",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 0,
+        "hit_type": "dodge",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 3287,
+        "hit_type": "crit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 0,
+        "hit_type": "none",
+        "action_ref": "a3"
+      },
+      {
+        "hp_damage": 3535,
+        "hit_type": "crit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 2169,
+        "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 507,
+        "hit_type": "crit",
+        "action_ref": "a2"
+      },
+      {
+        "hp_damage": 367,
+        "hit_type": "hit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 594,
+        "hit_type": "hit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 1170,
+        "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 988,
+        "hit_type": "hit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 94,
+        "hit_type": "hit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 871,
+        "hit_type": "hit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 90,
+        "hit_type": "crit",
+        "action_ref": "aa"
+      },
+      {
+        "hp_damage": 1168,
+        "hit_type": "hit",
+        "action_ref": "a1"
+      },
+      {
+        "hp_damage": 151,
+        "hit_type": "hit",
         "action_ref": "aa"
       }
     ]

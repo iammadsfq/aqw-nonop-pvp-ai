@@ -6,6 +6,8 @@
 
 import { bot, Monster } from "turu";
 import {
+    BLUDRUT_SAFEZONE_CELLS,
+    checkTrajectoryDoorCollision,
     NPC_MANA_TAP_SAFE_HP_MIN,
     NPC_MANA_TAP_SAFE_HP_RATIO,
 } from "../config/constants";
@@ -87,7 +89,50 @@ export function applyRuleShield(
         }
     }
 
-    // 3. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists in the cell
+    if (
+        (decision.action === "WALK_TO_DOOR" || decision.action === "SPRINT_TO_DOOR") &&
+        decision.targetCell &&
+        BLUDRUT_SAFEZONE_CELLS.has(decision.targetCell) &&
+        !obs.inSafezone &&
+        !obs.wave.canReturnToSafezone
+    ) {
+        return {
+            action: "IDLE",
+            reason: `[RuleShield] Blocked illegal mid-wave door transition into Safezone (${decision.targetCell}).`,
+        };
+    }
+
+    // 3. Trajectory Door-Collision Guard:
+    // When kiting inside the current screen (WALK_TO_POINT / SPRINT_TO_POINT), check if the linear
+    // path from (selfX, selfY) to (targetX, targetY) crosses any 2D door activation zone.
+    // If it does, clamp the destination just before the door boundary so the bot doesn't
+    // accidentally trigger a room transition!
+    if (
+        (decision.action === "WALK_TO_POINT" || decision.action === "SPRINT_TO_POINT") &&
+        typeof decision.targetX === "number" &&
+        typeof decision.targetY === "number"
+    ) {
+        const collision = checkTrajectoryDoorCollision(
+            obs.currentCell,
+            obs.selfX,
+            obs.selfY,
+            decision.targetX,
+            decision.targetY,
+        );
+        if (collision) {
+            const safeT = Math.max(0, collision.hitT - 0.15);
+            const clampedX = Math.round(obs.selfX + (decision.targetX - obs.selfX) * safeT);
+            const clampedY = Math.round(obs.selfY + (decision.targetY - obs.selfY) * safeT);
+            return {
+                ...decision,
+                targetX: clampedX,
+                targetY: clampedY,
+                reason: `${decision.reason} [RuleShield: clamped trajectory before ${collision.door.targetAlias} door trigger area]`,
+            };
+        }
+    }
+
+    // 4. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists in the cell
     if (decision.action === "MANA_TAP_NPC") {
         const safeNpc = findSafeManaTapNpc(obs);
         if (!safeNpc) {
