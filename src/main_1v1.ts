@@ -6,12 +6,22 @@
  */
 
 import { bot } from "turu";
-import { decideClassicWarrior1v1 } from "./classes/classic_warrior";
+import { inferBattleWarriorDecision } from "./ai/nn_inference";
+import { AQW_DEFAULT_WALK_SPEED, AQW_SPRINT_WALK_SPEED } from "./config/constants";
 import { createMatchConfig } from "./config/match_config";
 import { runNonOpPreflightCheck } from "./rules/preflight";
 import { applyRuleShield, enforceNpcProtectionGuard } from "./rules/shield";
 import { extractObservation } from "./state/extractor";
 import type { CombatDecision, CombatObservation, WaveTrackerState } from "./state/types";
+
+function triggerSprintWalk(x: number, y: number, isSprint: boolean): void {
+    if (isSprint) {
+        bot.flash.set("world.pDash", true);
+        bot.player.walkTo(x, y, AQW_SPRINT_WALK_SPEED);
+    } else {
+        bot.player.walkTo(x, y, AQW_DEFAULT_WALK_SPEED);
+    }
+}
 
 function executeDecision(decision: CombatDecision, obs: CombatObservation, combatCell: string, safezoneCell: string): void {
     switch (decision.action) {
@@ -20,6 +30,11 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
         case "CANCEL_AUTO_ATTACK":
             bot.combat.cancelAutoAttack();
             bot.combat.cancelTarget();
+            break;
+        case "REST_OUT_OF_COMBAT":
+            if (!obs.selfInCombat) {
+                bot.player.rest(false);
+            }
             break;
         case "TARGET_OPPONENT":
             if (decision.targetName) {
@@ -32,16 +47,37 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             }
             break;
         case "USE_SKILL_1":
+            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
             bot.skills.useSkill(1);
             break;
         case "USE_SKILL_2":
+            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
             bot.skills.useSkill(2);
             break;
         case "USE_SKILL_3":
             bot.skills.useSkill(3);
             break;
         case "USE_SKILL_4":
+            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+                bot.combat.attackPlayer(decision.targetName);
+            }
             bot.skills.useSkill(4);
+            break;
+        case "WALK_TO_POINT":
+        case "WALK_TO_DOOR":
+            if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
+                triggerSprintWalk(decision.targetX, decision.targetY, false);
+            }
+            break;
+        case "SPRINT_TO_POINT":
+        case "SPRINT_TO_DOOR":
+            if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
+                triggerSprintWalk(decision.targetX, decision.targetY, obs.canSprint);
+            }
             break;
         case "RETREAT_TO_SAFEZONE":
             bot.combat.cancelAutoAttack();
@@ -55,7 +91,6 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
     if (decision.action !== "IDLE") {
         bot.log(`[1v1 AI] ${decision.action} -> ${decision.reason}`);
     }
-    void obs;
 }
 
 export default function main(): void {
@@ -131,7 +166,7 @@ export default function main(): void {
             wave.canReturnToSafezone = false;
         }
 
-        const rawDecision = decideClassicWarrior1v1(obs);
+        const rawDecision = inferBattleWarriorDecision(obs);
         const safeDecision = applyRuleShield(rawDecision, obs, config);
         executeDecision(safeDecision, obs, config.combatCell, config.safezoneCell);
 
