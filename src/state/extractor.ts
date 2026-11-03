@@ -5,7 +5,12 @@
  */
 
 import { bot, PlayerInfo } from "turu";
-import { BLUDRUT_SAFEZONE_CELLS, PROTECTED_NPC_KEYWORDS } from "../config/constants";
+import {
+    AQW_MAX_STAMINA,
+    AQW_SPRINT_STAMINA_COST,
+    BLUDRUT_SAFEZONE_CELLS,
+    PROTECTED_NPC_KEYWORDS,
+} from "../config/constants";
 import type { CombatObservation, PlayerSnapshot, WaveTrackerState } from "./types";
 
 function toPlayerSnapshot(info: PlayerInfo): PlayerSnapshot {
@@ -42,8 +47,11 @@ export function extractObservation(
     const selfName = bot.player.username;
     const selfMaxHp = Math.max(1, bot.player.maxHealth);
     const selfMaxMp = Math.max(1, bot.player.maxMana);
+    const selfMaxSp = AQW_MAX_STAMINA;
     const selfHp = bot.player.health;
     const selfMp = bot.player.mana;
+    const rawSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP");
+    const selfSp = typeof rawSp === "number" && !Number.isNaN(rawSp) ? rawSp : AQW_MAX_STAMINA;
     const currentCell = bot.player.cell;
     const currentPad = bot.player.pad;
 
@@ -82,8 +90,13 @@ export function extractObservation(
         selfMp,
         selfMaxMp,
         selfMpRatio: selfMp / selfMaxMp,
+        selfSp,
+        selfMaxSp,
+        selfSpRatio: selfSp / selfMaxSp,
+        canSprint: selfSp >= AQW_SPRINT_STAMINA_COST,
         selfX: bot.player.x,
         selfY: bot.player.y,
+        selfWalkSpeed: bot.player.walkSpeed,
         selfAlive: bot.player.alive,
         selfInCombat: bot.player.inCombat,
         selfStats: bot.player.stats,

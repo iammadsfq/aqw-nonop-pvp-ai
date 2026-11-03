@@ -28,6 +28,12 @@ def parse_telemetry_file(log_path: Path) -> dict[str, Any]:
     classes: dict[str, Any] = {}
     auras_catalog: dict[str, dict[str, Any]] = {}
     hit_samples: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    door_transitions: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    regen_samples: dict[str, list[dict[str, Any]]] = {
+        "in_combat": [],
+        "out_of_combat": [],
+    }
+    movement_samples: list[dict[str, Any]] = []
 
     with log_path.open("r", encoding="utf-8") as f:
         for line_num, raw_line in enumerate(f, start=1):
@@ -91,9 +97,27 @@ def parse_telemetry_file(log_path: Path) -> dict[str, Any]:
                             }
                         )
 
+            elif rec_type == "door_transition":
+                from_cell = payload.get("fromCell")
+                to_cell = payload.get("toCell")
+                if from_cell and to_cell:
+                    edge_key = f"{from_cell}->{to_cell}"
+                    door_transitions[edge_key].append(payload)
+
+            elif rec_type == "regen_tick":
+                bucket = "in_combat" if payload.get("inCombat") else "out_of_combat"
+                regen_samples[bucket].append(payload)
+
+            elif rec_type == "movement_packet":
+                movement_samples.append(payload)
+
     return {
         "classes": classes,
         "aurasCatalog": auras_catalog,
+        "doorTransitions": dict(door_transitions),
+        "regenSamplesCount": {k: len(v) for k, v in regen_samples.items()},
+        "regenSamplesPreview": {k: v[:100] for k, v in regen_samples.items()},
+        "movementSamplesCount": len(movement_samples),
         "combatSamplesCount": {k: len(v) for k, v in hit_samples.items()},
         "combatSamplesPreview": {k: v[:50] for k, v in hit_samples.items()},
     }

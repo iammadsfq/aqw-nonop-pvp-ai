@@ -75,6 +75,196 @@ export const BLUDRUT_SAFEZONE_CELLS: ReadonlySet<string> = new Set([
     "Enter1",
 ]);
 
+/**
+ * Complete 16-screen topology of `/bludrutbrawl` (7 Blue + 7 Red + 2 Center).
+ * Maps standard community PvP screen names to AQW internal SWF cell names
+ * and defines the undirected/directed neighbor connectivity graph.
+ */
+export interface BludrutScreenSpec {
+    /** Community PvP alias (e.g., "Blue SZ", "Blue B3", "Mid", "Top"). */
+    alias: string;
+    /** Internal AQW cell name in `/bludrutbrawl` (e.g., "Enter0", "Morale0A", "Center"). */
+    cell: string;
+    /** Team side ownership ("blue" | "red" | "neutral"). */
+    side: "blue" | "red" | "neutral";
+    /** Screen role in BludrutBrawl. */
+    role: "safezone" | "brawler" | "restorer" | "captain" | "mid" | "top";
+    /** Directed door connections keyed by neighbor alias -> target cell. */
+    neighbors: Readonly<Record<string, string>>;
+}
+
+export const BLUDRUT_16_SCREENS: readonly BludrutScreenSpec[] = [
+    // --- BLUE SIDE (LEFT, 7 SCREENS) ---
+    {
+        alias: "Blue SZ",
+        cell: "Enter0",
+        side: "blue",
+        role: "safezone",
+        neighbors: { "Blue B3": "Morale0A" },
+    },
+    {
+        alias: "Blue B3",
+        cell: "Morale0A",
+        side: "blue",
+        role: "brawler",
+        neighbors: {
+            "Blue SZ": "Enter0",
+            "Blue B2": "Morale0B",
+            "Blue Capt": "Captain0",
+        },
+    },
+    {
+        alias: "Blue B2",
+        cell: "Morale0B",
+        side: "blue",
+        role: "brawler",
+        neighbors: {
+            "Blue B3": "Morale0A",
+            "Blue B1": "Morale0C",
+        },
+    },
+    {
+        alias: "Blue B1",
+        cell: "Morale0C",
+        side: "blue",
+        role: "brawler",
+        neighbors: {
+            "Blue B2": "Morale0B",
+            Mid: "Center",
+        },
+    },
+    {
+        alias: "Blue Capt",
+        cell: "Captain0",
+        side: "blue",
+        role: "captain",
+        neighbors: {
+            "Blue B3": "Morale0A",
+            "Blue R2": "Resource0B",
+        },
+    },
+    {
+        alias: "Blue R2",
+        cell: "Resource0B",
+        side: "blue",
+        role: "restorer",
+        neighbors: {
+            "Blue Capt": "Captain0",
+            "Blue R1": "Resource0A",
+        },
+    },
+    {
+        alias: "Blue R1",
+        cell: "Resource0A",
+        side: "blue",
+        role: "restorer",
+        neighbors: {
+            "Blue R2": "Resource0B",
+            Top: "Crossupper",
+        },
+    },
+
+    // --- CENTER (2 SCREENS) ---
+    {
+        alias: "Mid",
+        cell: "Center",
+        side: "neutral",
+        role: "mid",
+        neighbors: {
+            "Blue B1": "Morale0C",
+            "Red B1": "Morale1C",
+            Top: "Crossupper",
+        },
+    },
+    {
+        alias: "Top",
+        cell: "Crossupper",
+        side: "neutral",
+        role: "top",
+        neighbors: {
+            "Blue R1": "Resource0A",
+            "Red R1": "Resource1A",
+            Mid: "Center",
+        },
+    },
+
+    // --- RED SIDE (RIGHT, 7 SCREENS, MIRRORED) ---
+    {
+        alias: "Red R1",
+        cell: "Resource1A",
+        side: "red",
+        role: "restorer",
+        neighbors: {
+            Top: "Crossupper",
+            "Red R2": "Resource1B",
+        },
+    },
+    {
+        alias: "Red R2",
+        cell: "Resource1B",
+        side: "red",
+        role: "restorer",
+        neighbors: {
+            "Red R1": "Resource1A",
+            "Red Capt": "Captain1",
+        },
+    },
+    {
+        alias: "Red Capt",
+        cell: "Captain1",
+        side: "red",
+        role: "captain",
+        neighbors: {
+            "Red R2": "Resource1B",
+            "Red B3": "Morale1A",
+        },
+    },
+    {
+        alias: "Red B1",
+        cell: "Morale1C",
+        side: "red",
+        role: "brawler",
+        neighbors: {
+            Mid: "Center",
+            "Red B2": "Morale1B",
+        },
+    },
+    {
+        alias: "Red B2",
+        cell: "Morale1B",
+        side: "red",
+        role: "brawler",
+        neighbors: {
+            "Red B1": "Morale1C",
+            "Red B3": "Morale1A",
+        },
+    },
+    {
+        alias: "Red B3",
+        cell: "Morale1A",
+        side: "red",
+        role: "brawler",
+        neighbors: {
+            "Red B2": "Morale1B",
+            "Red Capt": "Captain1",
+            "Red SZ": "Enter1",
+        },
+    },
+    {
+        alias: "Red SZ",
+        cell: "Enter1",
+        side: "red",
+        role: "safezone",
+        neighbors: { "Red B3": "Morale1A" },
+    },
+] as const;
+
+/** Movement & Stamina (`intSP`) constants in AQW client (`Game4000r7.swf`). */
+export const AQW_MAX_STAMINA = 100;
+export const AQW_SPRINT_STAMINA_COST = 50;
+export const AQW_DEFAULT_WALK_SPEED = 8;
+export const AQW_SPRINT_WALK_SPEED = 16;
+
 /** Protected NPC keywords in /bludrutbrawl that MUST NOT be killed (mana tap only). */
 export const PROTECTED_NPC_KEYWORDS: readonly string[] = [
     "brawler",
