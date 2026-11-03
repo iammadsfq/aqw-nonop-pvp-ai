@@ -93,6 +93,24 @@ export function recordCurrentClassSpecification(): void {
     );
 }
 
+/**
+ * Records all cells and NPC monsters (Brawlers, Restorers, Captains) in the current map.
+ */
+export function recordMapSnapshot(): void {
+    const cells = bot.map.cells;
+    const monsters = bot.monsters.mapMonsters;
+    writeTelemetry("map_snapshot", {
+        mapName: bot.map.name,
+        fullName: bot.map.fullName,
+        roomId: bot.map.roomId,
+        cells,
+        monsters,
+    });
+    bot.log(
+        `[Telemetry] Recorded map snapshot for "${bot.map.fullName}" (${cells.length} cells, ${monsters.length} NPCs).`,
+    );
+}
+
 export default function main(): void {
     bot.log("==========================================================");
     bot.log("[AQW Telemetry Recorder] Waiting for player login & load...");
@@ -102,7 +120,18 @@ export default function main(): void {
         bot.sleep(500);
     }
 
+    // Automatically join private /bludrutbrawl room if currently in battleon or another lobby
+    if (bot.map.name.toLowerCase() !== "bludrutbrawl") {
+        bot.log("[Telemetry] Joining private /bludrutbrawl-99999 arena for calibration...");
+        bot.map.join("bludrutbrawl-99999", "Enter0", "Spawn");
+        bot.wait.forMapLoad("bludrutbrawl", 30);
+        bot.sleep(1000);
+    }
+
+    recordMapSnapshot();
+
     let lastRecordedClass = "";
+    let lastRecordedMap = bot.map.name.toLowerCase();
 
     // 1. Hook into incoming server packets (specifically `ct` combat trace & `sAct` skill packets)
     const unsubscribeExt = bot.events.on("extensionPacket", (packet: any) => {
@@ -189,6 +218,12 @@ export default function main(): void {
                 if (currentClass && currentClass !== lastRecordedClass) {
                     recordCurrentClassSpecification();
                     lastRecordedClass = currentClass;
+                }
+
+                const currentMap = bot.map.name.toLowerCase();
+                if (currentMap && currentMap !== lastRecordedMap && !bot.map.loading) {
+                    recordMapSnapshot();
+                    lastRecordedMap = currentMap;
                 }
 
                 const curCell = bot.player.cell;

@@ -34,6 +34,7 @@ def parse_telemetry_file(log_path: Path) -> dict[str, Any]:
         "out_of_combat": [],
     }
     movement_samples: list[dict[str, Any]] = []
+    map_snapshots: dict[str, Any] = {}
 
     with log_path.open("r", encoding="utf-8") as f:
         for line_num, raw_line in enumerate(f, start=1):
@@ -93,7 +94,7 @@ def parse_telemetry_file(log_path: Path) -> dict[str, Any]:
                             {
                                 "hp_damage": action_res.get("hp"),
                                 "hit_type": action_res.get("type"),
-                                "action_ref": action_res.get("strl"),
+                                "action_ref": action_res.get("actRef") or action_res.get("strl"),
                             }
                         )
 
@@ -111,9 +112,14 @@ def parse_telemetry_file(log_path: Path) -> dict[str, Any]:
             elif rec_type == "movement_packet":
                 movement_samples.append(payload)
 
+            elif rec_type == "map_snapshot":
+                map_name = payload.get("mapName") or entry.get("map") or "unknown"
+                map_snapshots[map_name] = payload
+
     return {
         "classes": classes,
         "aurasCatalog": auras_catalog,
+        "mapSnapshots": map_snapshots,
         "doorTransitions": dict(door_transitions),
         "regenSamplesCount": {k: len(v) for k, v in regen_samples.items()},
         "regenSamplesPreview": {k: v[:100] for k, v in regen_samples.items()},
