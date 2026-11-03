@@ -7,7 +7,11 @@
 
 import { bot } from "turu";
 import { inferBattleWarriorDecision } from "./ai/nn_inference";
-import { AQW_DEFAULT_WALK_SPEED, AQW_SPRINT_WALK_SPEED } from "./config/constants";
+import {
+    AQW_DEFAULT_WALK_SPEED,
+    AQW_SPRINT_STAMINA_COST,
+    AQW_SPRINT_WALK_SPEED,
+} from "./config/constants";
 import { createMatchConfig } from "./config/match_config";
 import { runNonOpPreflightCheck } from "./rules/preflight";
 import { applyRuleShield, enforceNpcProtectionGuard } from "./rules/shield";
@@ -37,41 +41,27 @@ function triggerSprintWalk(cell: string, x: number, y: number, isSprint: boolean
     lastWalkY = y;
     lastWalkTime = now;
 
-    if (isSprint) {
+    const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
+    const canReallySprint = isSprint && currentSp >= AQW_SPRINT_STAMINA_COST;
+
+    if (canReallySprint) {
+        // Explicitly deduct 50 stamina locally in Flash and update UI portrait/actbar
+        // so client and server stamina stay 100% in sync!
+        const newSp = Math.max(0, currentSp - AQW_SPRINT_STAMINA_COST);
+        bot.flash.set("world.myAvatar.dataLeaf.intSP", newSp);
+        bot.flash.set("world.myAvatar.objData.intSP", newSp);
         bot.flash.set("world.justRan", true);
+        bot.flash.set("world.rootClass.pDash", true);
+        bot.flash.call("world.updatePortrait", "world.myAvatar");
+        bot.flash.call("world.updateActBar");
+
         bot.player.walkTo(x, y, AQW_SPRINT_WALK_SPEED);
     } else {
+        bot.flash.set("world.justRan", false);
+        bot.flash.set("world.rootClass.pDash", false);
         bot.player.walkTo(x, y, AQW_DEFAULT_WALK_SPEED);
     }
     return true;
-}
-
-function hasArrivedAtDoorArchway(obs: CombatObservation, targetX: number, targetY: number): boolean {
-    // Wait at least 500ms after entering a cell so AvatarMC has settled on the spawn pad
-    if (Date.now() - cellEnteredAt < 500) {
-        return false;
-    }
-    const dist = Math.hypot(obs.selfX - targetX, obs.selfY - targetY);
-    if (dist <= 105) {
-        return true;
-    }
-    // Right archway trigger zone
-    if (targetX >= 750 && obs.selfX >= 735 && obs.selfY <= 318) {
-        return true;
-    }
-    // Left archway trigger zone
-    if (targetX <= 220 && obs.selfX <= 235 && obs.selfY <= 318) {
-        return true;
-    }
-    // Top archway trigger zone (e.g., Mid -> Top or B3 -> Capt)
-    if (targetY <= 265 && obs.selfY <= 290 && Math.abs(obs.selfX - targetX) <= 85) {
-        return true;
-    }
-    // Bottom wide door trigger zone (e.g., Top -> Mid or Capt -> B3)
-    if (targetY >= 470 && obs.selfY >= 445) {
-        return true;
-    }
-    return false;
 }
 
 function executeDecision(decision: CombatDecision, obs: CombatObservation, combatCell: string, safezoneCell: string): void {
@@ -145,16 +135,11 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
         case "WALK_TO_DOOR":
         case "SPRINT_TO_DOOR":
             if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                if (
-                    decision.targetCell &&
-                    hasArrivedAtDoorArchway(obs, decision.targetX, decision.targetY)
-                ) {
-                    bot.map.jump(decision.targetCell, decision.targetPad ?? "Left");
-                    shouldLog = true;
-                } else {
-                    const useSprint = decision.action === "SPRINT_TO_DOOR" && obs.canSprint;
-                    shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, useSprint);
-                }
+                // NEVER call bot.map.jump! In /bludrutbrawl, the server strictly validates door hitboxes.
+                // Walking directly through the door coordinates triggers Flash's natural door transition
+                // on both client and server simultaneously, completely eliminating room desync!
+                const useSprint = decision.action === "SPRINT_TO_DOOR" && obs.canSprint;
+                shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, useSprint);
             }
             break;
         case "RETREAT_TO_SAFEZONE":
