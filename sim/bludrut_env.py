@@ -512,29 +512,29 @@ class Bludrut1v1Env(gym.Env):
                 me.hp / me.max_hp,                                  # 0: self HP ratio
                 me.mp / me.max_mp,                                  # 1: self MP ratio
                 me.sp / me.max_sp,                                  # 2: self Stamina (intSP) ratio
-                1.0 if me.sp >= SPRINT_SP_COST else 0.0,            # 3: can sprint
+                1.0 if me.sp >= SPRINT_SP_COST else 0.0,            # 3: can sprint (SP >= 50)
                 1.0 if me.in_combat else 0.0,                       # 4: self in combat
-                min(1.0, me.time_since_last_combat_action / 12.0),  # 5: OOC timer progress
-                (SERVER_REGEN_TICK_SEC - me.regen_Clock) / SERVER_REGEN_TICK_SEC,  # 6: time to next 6s server tick
-                me.x / 960.0,                                       # 7: self X normalized
-                me.y / 540.0,                                       # 8: self Y normalized
-                me_screen.index / 15.0,                             # 9: self cell index
-                min(1.0, me.cooldowns[1] / self.skill_cds[1]),      # 10: a1 CD ratio
-                min(1.0, me.cooldowns[2] / self.skill_cds[2]),      # 11: a2 CD ratio
-                min(1.0, me.cooldowns[3] / self.skill_cds[3]),      # 12: a3 CD ratio
-                min(1.0, me.cooldowns[4] / self.skill_cds[4]),      # 13: a4 CD ratio
-                min(1.0, me.stun_rem / 4.0),                        # 14: self stun remaining
-                min(1.0, me.prepared_strike_rem / 5.0),             # 15: self Prepared Strike remaining
-                me.prepared_strike_stacks / 2.0,                    # 16: self Prepared Strike stacks
-                min(1.0, me.on_guard_rem / 10.0),                   # 17: self On Guard remaining
-                same_cell,                                          # 18: opponent in same screen
-                in_melee,                                           # 19: opponent within melee range (301px)
-                min(1.0, dist / 960.0),                             # 20: 2D distance to opponent
-                opp.hp / opp.max_hp,                                # 21: opponent HP ratio
-                opp.mp / opp.max_mp,                                # 22: opponent MP ratio
-                min(1.0, opp.stun_rem / 4.0),                       # 23: opponent stun remaining
-                min(1.0, opp.on_guard_rem / 10.0),                  # 24: opponent On Guard (-50% dmg) remaining
-                has_safe_npc,                                       # 25: safe NPC available in cell for mana tap
+                0.0 if me.in_combat else min(1.0, me.time_since_last_combat_action / 12.0),  # 5: OOC timer progress
+                me_screen.index / 15.0,                             # 6: normalized screen index
+                min(1.0, max(0.0, me.x / 960.0)),                   # 7: self X
+                min(1.0, max(0.0, me.y / 550.0)),                   # 8: self Y
+                1.0 if me.hp > 0.0 else 0.0,                        # 9: self alive
+                1.0 if me.cooldowns[1] <= 0.0 else 0.0,             # 10: skill 1 ready
+                1.0 if me.cooldowns[2] <= 0.0 else 0.0,             # 11: skill 2 ready
+                1.0 if me.cooldowns[3] <= 0.0 else 0.0,             # 12: skill 3 ready
+                1.0 if me.cooldowns[4] <= 0.0 else 0.0,             # 13: skill 4 ready
+                min(1.0, max(0.0, me.cooldowns[1] / self.skill_cds[1])), # 14: skill 1 CD ratio
+                min(1.0, max(0.0, me.cooldowns[2] / self.skill_cds[2])), # 15: skill 2 CD ratio
+                min(1.0, max(0.0, me.cooldowns[3] / self.skill_cds[3])), # 16: skill 3 CD ratio
+                min(1.0, max(0.0, me.cooldowns[4] / self.skill_cds[4])), # 17: skill 4 CD ratio
+                1.0 if (me.on_guard_rem > 0 or me.prepared_strike_rem > 0) else 0.0, # 18: self has buff
+                1.0 if me.stun_rem > 0.0 else 0.0,                  # 19: self stunned
+                1.0 if opp.hp > 0.0 else 0.0,                       # 20: opp alive
+                same_cell,                                          # 21: opp in same cell
+                min(1.0, dist / 1000.0),                            # 22: distance to opp
+                in_melee,                                           # 23: in melee range
+                opp.hp / max(1.0, opp.max_hp),                      # 24: opp HP ratio
+                has_safe_npc,                                       # 25: safe NPC HP ratio / available
             ],
             dtype=np.float32,
         )
@@ -616,7 +616,7 @@ class Bludrut1v1Env(gym.Env):
         # Check dodge (unless unavoidable crit from Prepared Strike or defender is stunned)
         if not unavoidable_crit and defender.stun_rem <= 0.0:
             if float(self.rng.random()) < self.dodge_chance:
-                return 0.0
+                return 0.0, 0.0
 
         is_crit = unavoidable_crit or (float(self.rng.random()) < self.crit_chance)
         raw_dmg = self.base_aa_damage * mult * float(self.rng.uniform(0.95, 1.05))
@@ -625,7 +625,9 @@ class Bludrut1v1Env(gym.Env):
 
         # Apply outgoing & incoming damage modifiers ($cpo = 1.1, $cai = 0.9, On Guard = -50%)
         dmg = raw_dmg * self.cpo * self.cai
+        mitigated = 0.0
         if defender.on_guard_rem > 0.0:
+            mitigated = dmg * 0.50
             dmg *= 0.50
 
         defender.hp = max(0.0, defender.hp - dmg)
@@ -640,18 +642,19 @@ class Bludrut1v1Env(gym.Env):
         if skill_idx == 2:
             defender.stun_rem = max(defender.stun_rem, 4.0)
 
-        return dmg
+        return dmg, mitigated
 
-    def _apply_action(self, f: FighterState, opp: FighterState, action: int) -> tuple[float, float]:
+    def _apply_action(self, f: FighterState, opp: FighterState, action: int) -> tuple[float, float, float]:
         """
         Applies discrete action for fighter `f`.
-        Returns `(damage_dealt_to_opp, rule_penalty)`.
+        Returns `(damage_dealt_to_opp, rule_penalty, damage_mitigated)`.
         """
         dmg_dealt = 0.0
         penalty = 0.0
+        dmg_mitigated = 0.0
 
         if f.stun_rem > 0.0:
-            return 0.0, 0.0
+            return 0.0, 0.0, 0.0
 
         same_cell = f.cell == opp.cell
         dist = math.hypot(f.x - opp.x, f.y - opp.y) if same_cell else 9999.0
@@ -722,7 +725,9 @@ class Bludrut1v1Env(gym.Env):
                         if skill_idx == 4:
                             # a4: On Guard applies 10s -50% incoming dmg buff to self AND deals 0.75x damage
                             f.on_guard_rem = 10.0
-                        dmg_dealt += self._resolve_attack(f, opp, skill_idx)
+                        d, m = self._resolve_attack(f, opp, skill_idx)
+                        dmg_dealt += d
+                        dmg_mitigated += m
 
         # Automatic Auto Attack (`aa`) when cooldown ready
         if f.cooldowns[0] <= 0.0 and f.stun_rem <= 0.0:
@@ -747,9 +752,127 @@ class Bludrut1v1Env(gym.Env):
                 f.time_since_last_combat_action = 0.0
                 opp.in_combat = True
                 opp.time_since_last_combat_action = 0.0
-                dmg_dealt += self._resolve_attack(f, opp, 0)
+                d, m = self._resolve_attack(f, opp, 0)
+                dmg_dealt += d
+                dmg_mitigated += m
 
-        return dmg_dealt, penalty
+        return dmg_dealt, penalty, dmg_mitigated
+
+    def _apply_compound_action(
+        self,
+        f: FighterState,
+        opp: FighterState,
+        action: tuple | list | np.ndarray,
+    ) -> tuple[float, float, float]:
+        """
+        Applies atomic compound action:
+        combat_act: 0=NONE, 1=AA, 2=S1, 3=S2, 4=S3, 5=S4, 6=MANA_TAP
+        move_act: 0=STAND, 1=WALK, 2=SPRINT
+        norm_x, norm_y: optional target coordinates in [0, 1]
+        Returns (damage_dealt, stall_penalty, damage_mitigated).
+        """
+        dmg_dealt = 0.0
+        stall_penalty = 0.0
+        dmg_mitigated = 0.0
+
+        if f.stun_rem > 0.0:
+            return 0.0, 0.0, 0.0
+
+        combat_act = int(action[0])
+        move_act = int(action[1])
+        norm_x = float(action[2]) if len(action) > 2 else None
+        norm_y = float(action[3]) if len(action) > 3 else None
+
+        same_cell = f.cell == opp.cell
+        dist = math.hypot(f.x - opp.x, f.y - opp.y) if same_cell else 9999.0
+
+        # 1. Execute Movement
+        if move_act in (1, 2):
+            sprint = (move_act == 2)
+            if sprint and f.sp < 50.0:
+                sprint = False
+
+            start_x, start_y = f.x, f.y
+
+            if norm_x is not None and norm_y is not None:
+                target_x = max(80.0, min(860.0, norm_x * 960.0))
+                target_y = max(290.0, min(435.0, norm_y * 550.0))
+                self._move_fighter(f, target_x, target_y, sprint=sprint, allow_door=True)
+            else:
+                if same_cell:
+                    f.target_kind = "opponent"
+                    if dist > MELEE_RANGE * 0.75:
+                        self._move_fighter(f, opp.x, opp.y, sprint=sprint, allow_door=False)
+                else:
+                    self._step_toward_cell(f, opp.cell, sprint=sprint)
+
+            disp = math.hypot(f.x - start_x, f.y - start_y)
+            if sprint:
+                f.sp = max(0.0, f.sp - 5.0)
+                # Kinematic stall penalty: burning sprint with near-zero displacement
+                if disp < 2.0:
+                    stall_penalty = 0.05 * (1.0 - disp / 16.0)
+
+        # 2. Execute Combat Action
+        if combat_act == 1:
+            f.target_kind = "opponent"
+        elif combat_act == 6:
+            screen = SCREEN_BY_CELL[f.cell]
+            npc_cur = self.npc_hp.get(f.cell, 0.0)
+            if screen.npc_max_hp > 0 and npc_cur >= 2000.0 and (npc_cur / screen.npc_max_hp) >= 0.35:
+                f.target_kind = "npc"
+            else:
+                f.target_kind = "opponent"
+        elif combat_act in (2, 3, 4, 5):
+            skill_idx = combat_act - 1  # 1=a1, 2=a2, 3=a3, 4=a4
+            if f.cooldowns[skill_idx] <= 0.0 and f.mp >= self.skill_mp[skill_idx]:
+                if skill_idx == 3:
+                    f.mp -= self.skill_mp[3]
+                    f.cooldowns[3] = self.skill_cds[3]
+                    f.prepared_strike_rem = 5.0
+                    f.prepared_strike_stacks = 2
+                else:
+                    if same_cell and dist <= MELEE_RANGE:
+                        f.target_kind = "opponent"
+                        f.mp -= self.skill_mp[skill_idx]
+                        f.cooldowns[skill_idx] = self.skill_cds[skill_idx]
+                        f.in_combat = True
+                        f.time_since_last_combat_action = 0.0
+                        opp.in_combat = True
+                        opp.time_since_last_combat_action = 0.0
+                        if skill_idx == 4:
+                            f.on_guard_rem = 10.0
+                        d, m = self._resolve_attack(f, opp, skill_idx)
+                        dmg_dealt += d
+                        dmg_mitigated += m
+
+        # Automatic Auto Attack when ready
+        if f.cooldowns[0] <= 0.0 and f.stun_rem <= 0.0:
+            if f.target_kind == "npc":
+                screen = SCREEN_BY_CELL[f.cell]
+                npc_cur = self.npc_hp.get(f.cell, 0.0)
+                if screen.npc_max_hp > 0 and npc_cur >= 2000.0 and math.hypot(f.x - 480.0, f.y - 330.0) <= MELEE_RANGE:
+                    f.cooldowns[0] = self.skill_cds[0]
+                    f.in_combat = True
+                    f.time_since_last_combat_action = 0.0
+                    is_crit = float(self.rng.random()) < self.crit_chance
+                    npc_dmg = self.base_aa_damage * (self.crit_mult if is_crit else 1.0)
+                    self.npc_hp[f.cell] = max(1500.0, npc_cur - npc_dmg)
+                    f.mp = min(f.max_mp, f.mp + (AA_CRIT_MP_GAIN if is_crit else AA_HIT_MP_GAIN))
+                    f.hp = max(1.0, f.hp - 190.0 * (0.5 if f.on_guard_rem > 0 else 1.0))
+                    f.mp = min(f.max_mp, f.mp + ON_HIT_TAKEN_MP_GAIN)
+            elif same_cell and dist <= MELEE_RANGE:
+                f.target_kind = "opponent"
+                f.cooldowns[0] = self.skill_cds[0]
+                f.in_combat = True
+                f.time_since_last_combat_action = 0.0
+                opp.in_combat = True
+                opp.time_since_last_combat_action = 0.0
+                d, m = self._resolve_attack(f, opp, 0)
+                dmg_dealt += d
+                dmg_mitigated += m
+
+        return dmg_dealt, stall_penalty, dmg_mitigated
 
     def _step_toward_cell(self, f: FighterState, goal_cell: str, sprint: bool) -> None:
         """Finds the door in `f.cell` leading toward `goal_cell` (BFS shortest path) and walks/sprints to its `aim_x, aim_y`."""
@@ -841,23 +964,52 @@ class Bludrut1v1Env(gym.Env):
             return 3  # Decisive Strike (a1)
         return 0
 
-    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+    def step(self, action: int | tuple | list | np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         self.step_count += 1
         opp_action = self._heuristic_opponent_action(self.enemy, self.agent)
 
         prev_agent_hp = self.agent.hp
         prev_enemy_hp = self.enemy.hp
+        prev_agent_mp = self.agent.mp
+        prev_agent_sp = self.agent.sp
 
-        dmg_by_agent, pen_agent = self._apply_action(self.agent, self.enemy, int(action))
-        dmg_by_enemy, _ = self._apply_action(self.enemy, self.agent, int(opp_action))
+        if isinstance(action, (tuple, list, np.ndarray)):
+            dmg_by_agent, pen_agent, agent_mit = self._apply_compound_action(self.agent, self.enemy, action)
+        else:
+            dmg_by_agent, pen_agent, agent_mit = self._apply_action(self.agent, self.enemy, int(action))
+
+        dmg_by_enemy, _, enemy_mit = self._apply_action(self.enemy, self.agent, int(opp_action))
 
         self._tick_timers_and_regen(self.agent)
         self._tick_timers_and_regen(self.enemy)
 
-        # Dense reward shaping + terminal win/loss reward
-        hp_change_agent = self.agent.hp - prev_agent_hp
-        hp_change_enemy = self.enemy.hp - prev_enemy_hp
-        reward = (( -hp_change_enemy) - (-hp_change_agent)) / MAX_HP * 2.5 - pen_agent
+        # 1. Net EHP Trade (Damage Dealt vs Damage Taken)
+        dmg_dealt = max(0.0, prev_enemy_hp - self.enemy.hp)
+        dmg_taken = max(0.0, prev_agent_hp - self.agent.hp)
+        r_ehp = (dmg_dealt / MAX_HP) * 2.0 - (dmg_taken / MAX_HP) * 2.5
+
+        # 2. Damage Mitigation Dividend (absorbing damage with shields/buffs)
+        r_mitigation = (agent_mit / MAX_HP) * 2.0
+
+        # 3. Crowd Control Dividend (incapacitating the opponent in-combat)
+        r_stun = 0.04 if (self.enemy.stun_rem > 0.0 and self.enemy.cell == self.agent.cell) else 0.0
+
+        # 4. Dynamic Concave Mana Potential (Logarithmic Diminishing Marginal Utility)
+        def mana_potential(mp: float) -> float:
+            return 0.5 * math.log(1.0 + 4.0 * max(0.0, mp) / MAX_MP)
+
+        f_mana = mana_potential(self.agent.mp) - mana_potential(prev_agent_mp)
+
+        # 5. Dynamic Stamina Potential
+        def stamina_potential(sp: float) -> float:
+            return 0.2 * (max(0.0, sp) / MAX_SP)
+
+        f_stamina = stamina_potential(self.agent.sp) - stamina_potential(prev_agent_sp)
+
+        # 6. Step penalty (Time efficiency to encourage decisive win)
+        r_time = -0.002
+
+        reward = r_ehp + r_mitigation + r_stun + f_mana + f_stamina + r_time - pen_agent
 
         terminated = False
         truncated = False
@@ -868,17 +1020,16 @@ class Bludrut1v1Env(gym.Env):
             info["winner"] = "draw"
         elif self.enemy.hp <= 0.0:
             terminated = True
-            reward += 5.0 + 2.0 * (self.agent.hp / self.agent.max_hp)
+            reward += 10.0 + 5.0 * (self.agent.hp / self.agent.max_hp)
             info["winner"] = "agent"
         elif self.agent.hp <= 0.0:
             terminated = True
-            reward -= 5.0
+            reward -= 10.0
             info["winner"] = "enemy"
         elif self.step_count >= self.max_steps:
             truncated = True
-            # Advantage evaluation on timeout
             hp_diff = (self.agent.hp / self.agent.max_hp) - (self.enemy.hp / self.enemy.max_hp)
-            reward += hp_diff * 1.5
+            reward += hp_diff * 5.0
             info["winner"] = "timeout"
 
         return self._get_obs(self.agent, self.enemy), float(reward), terminated, truncated, info
