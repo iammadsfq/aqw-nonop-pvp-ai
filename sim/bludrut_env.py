@@ -379,6 +379,10 @@ class FighterState:
     on_guard_rem: float = 0.0        # On Guard (10s -50% incoming damage)
     door_cooldown: float = 0.0       # Screen transition immunity to prevent instant ping-pong
 
+    # Event telemetry for accurate logging
+    last_combat_event: str = ""
+    last_aa_event: str = ""
+
     # Target state: "opponent", "npc", or "none"
     target_kind: str = "opponent"
 
@@ -851,6 +855,9 @@ class Bludrut1v1Env(gym.Env):
         stall_penalty = 0.0
         dmg_mitigated = 0.0
 
+        f.last_combat_event = ""
+        f.last_aa_event = ""
+
         if f.stun_rem > 0.0:
             return 0.0, 0.0, 0.0
 
@@ -901,6 +908,7 @@ class Bludrut1v1Env(gym.Env):
                     f.cooldowns[3] = self.skill_cds[3]
                     f.prepared_strike_rem = 5.0
                     f.prepared_strike_stacks = 2
+                    f.last_combat_event = "S3_BUFF"
                 else:
                     if same_cell and dist <= MELEE_RANGE:
                         f.target_kind = "opponent"
@@ -915,6 +923,21 @@ class Bludrut1v1Env(gym.Env):
                         d, m = self._resolve_attack(f, opp, skill_idx)
                         dmg_dealt += d
                         dmg_mitigated += m
+                        if d == 0.0:
+                            f.last_combat_event = f"S{skill_idx}_DODGED"
+                        else:
+                            if skill_idx == 2:
+                                f.last_combat_event = f"S2_STUN:{d:.0f}"
+                            elif skill_idx == 4:
+                                f.last_combat_event = f"S4_GUARD:{d:.0f}"
+                            else:
+                                f.last_combat_event = f"S{skill_idx}_HIT:{d:.0f}"
+                    else:
+                        f.last_combat_event = f"S{skill_idx}_OUT_OF_RANGE"
+            elif f.cooldowns[skill_idx] > 0.0:
+                f.last_combat_event = f"S{skill_idx}_ON_CD"
+            elif f.mp < self.skill_mp[skill_idx]:
+                f.last_combat_event = f"S{skill_idx}_LOW_MP"
 
         # Automatic Auto Attack when ready
         if f.cooldowns[0] <= 0.0 and f.stun_rem <= 0.0:
@@ -928,6 +951,10 @@ class Bludrut1v1Env(gym.Env):
                 d, m = self._resolve_attack(f, opp, 0)
                 dmg_dealt += d
                 dmg_mitigated += m
+                if d == 0.0:
+                    f.last_aa_event = "AA_DODGED"
+                else:
+                    f.last_aa_event = f"AA_HIT:{d:.0f}"
 
         return dmg_dealt, stall_penalty, dmg_mitigated
 

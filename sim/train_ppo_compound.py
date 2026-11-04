@@ -362,12 +362,15 @@ def evaluate_and_record_match(
     win_hps = []
 
     model.eval()
-    match_frames = []
+    best_match_frames: list[dict] = []
+    best_match_winner: str = "Red Bot"
+    found_win = False
 
     for ep in range(episodes):
         obs, _ = env.reset()
         done = False
-        record_this = ep == 0
+        record_this = not found_win  # Record until we capture a winning match
+        ep_frames: list[dict] = []
         step_idx = 0
 
         while not done:
@@ -400,7 +403,6 @@ def evaluate_and_record_match(
             done = term or trunc
 
             if record_this:
-                dmg_to_opp = max(0.0, prev_opp_hp - env.enemy.hp)
                 dmg_to_ag = max(0.0, prev_ag_hp - env.agent.hp)
 
                 agent_alias = SCREEN_BY_CELL[env.agent.cell].alias if env.agent.cell in SCREEN_BY_CELL else env.agent.cell
@@ -418,23 +420,33 @@ def evaluate_and_record_match(
                 if prev_enemy_cell != env.enemy.cell:
                     logs.append(f"🚪 Red crossed door into {env.enemy.cell} ({enemy_alias})")
 
-                if c_act.item() == 2:
-                    logs.append(f"⚔️ Blue CAST S1 (Decisive) -> {dmg_to_opp:.0f} dmg")
-                elif c_act.item() == 3:
-                    logs.append(f"⚡ Blue CAST S2 (Stun 4s) -> Opponent STUNNED!")
-                elif c_act.item() == 4:
-                    logs.append(f"🔥 Blue CAST S3 (Prepared) -> Crit buff activated")
-                elif c_act.item() == 5:
-                    logs.append(f"🛡️ Blue CAST S4 (On Guard) -> -50% Barrier activated!")
-                elif dmg_to_opp > 0:
-                    logs.append(f"⚔️ Blue hit Red -> dealt {dmg_to_opp:.0f} dmg")
+                # Parse verified physical combat telemetry from engine
+                ev = env.agent.last_combat_event
+                if ev.startswith("S1_HIT:"):
+                    logs.append(f"⚔️ Blue CAST S1 (Decisive) -> dealt {ev.split(':')[1]} dmg")
+                elif ev == "S1_DODGED":
+                    logs.append("💨 Blue CAST S1 (Decisive) -> DODGED by Red!")
+                elif ev.startswith("S2_STUN:"):
+                    logs.append(f"⚡ Blue CAST S2 (Stun 4s) -> Opponent STUNNED! ({ev.split(':')[1]} dmg)")
+                elif ev == "S2_DODGED":
+                    logs.append("💨 Blue CAST S2 (Stun 4s) -> DODGED by Red!")
+                elif ev == "S3_BUFF":
+                    logs.append("🔥 Blue CAST S3 (Prepared) -> Crit buff activated")
+                elif ev.startswith("S4_GUARD:"):
+                    logs.append(f"🛡️ Blue CAST S4 (On Guard) -> -50% Barrier activated! ({ev.split(':')[1]} dmg)")
+
+                aa_ev = env.agent.last_aa_event
+                if aa_ev.startswith("AA_HIT:"):
+                    logs.append(f"⚔️ Blue hit Red -> dealt {aa_ev.split(':')[1]} dmg")
+                elif aa_ev == "AA_DODGED":
+                    logs.append("💨 Blue auto-attack -> DODGED by Red!")
 
                 if dmg_to_ag > 0:
                     logs.append(f"💥 Red hit Blue -> dealt {dmg_to_ag:.0f} dmg")
 
                 log_msg = " | ".join(logs)
 
-                match_frames.append({
+                ep_frames.append({
                     "t": round(step_idx * 0.1, 2),
                     "room": env.agent.cell,
                     "room_alias": agent_alias,
@@ -477,10 +489,20 @@ def evaluate_and_record_match(
                 if winner == "agent":
                     wins += 1
                     win_hps.append(env.agent.hp / MAX_HP)
+                    if not found_win and ep_frames:
+                        best_match_frames = ep_frames
+                        best_match_winner = "Blue Agent"
+                        found_win = True
                 elif winner == "enemy":
                     losses += 1
+                    if not best_match_frames and ep == 0:
+                        best_match_frames = ep_frames
+                        best_match_winner = "Red Bot"
                 else:
                     draws += 1
+                    if not best_match_frames and ep == 0:
+                        best_match_frames = ep_frames
+                        best_match_winner = "Draw"
             else:
                 obs = next_obs
 
@@ -493,12 +515,12 @@ def evaluate_and_record_match(
         "avg_win_hp_ratio": (sum(win_hps) / max(1, len(win_hps))) if win_hps else 0.0,
     }
 
-    winner_str = "Blue Agent" if wins > losses else ("Red Bot" if losses > wins else "Draw")
     record_eval_match({
         "update": update_num,
-        "winner": winner_str,
-        "total_frames": len(match_frames),
-        "frames": match_frames,
+        "winner": best_match_winner,
+        "win_rate": round(metrics["win_rate"], 3),
+        "total_frames": len(best_match_frames),
+        "frames": best_match_frames,
     })
 
     return metrics

@@ -327,7 +327,8 @@
       frameScrubber.max = match.frames.length - 1;
       frameScrubber.value = 0;
       loadingOverlay.classList.add('hidden');
-      logMatchTag.textContent = `Update #${match.update} (${match.winner.toUpperCase()} won in ${(match.frames.length * 0.1).toFixed(1)}s)`;
+      const wrStr = (match.win_rate !== undefined) ? ` [${(match.win_rate * 100).toFixed(0)}% WR]` : '';
+      logMatchTag.textContent = `Update #${match.update}${wrStr} (${match.winner.toUpperCase()} won in ${(match.frames.length * 0.1).toFixed(1)}s)`;
 
       // Populate combat logs
       combatLogList.innerHTML = '';
