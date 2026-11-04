@@ -94,7 +94,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="safezone",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale0C", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Morale0C", "Left", 750.0, 960.0, 245.0, 315.0, 850.0, 262.0, 173.0, 342.0),
         ),
     ),
     ScreenSpec(
@@ -105,9 +105,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Enter0", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Morale0B", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
-            DoorTrigger("Captain0", "Spawn", 400.0, 540.0, 220.0, 275.0, 465.0, 260.0, 485.0, 420.0),
+            DoorTrigger("Enter0", "Right", 0.0, 220.0, 245.0, 312.0, 120.0, 265.0, 789.0, 354.0),
+            DoorTrigger("Morale0B", "Left", 750.0, 960.0, 245.0, 312.0, 855.0, 265.0, 191.0, 352.0),
+            DoorTrigger("Captain0", "Spawn", 400.0, 540.0, 220.0, 285.0, 465.0, 255.0, 468.0, 272.0),
         ),
     ),
     ScreenSpec(
@@ -118,8 +118,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale0C", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Morale0A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Morale0C", "Right", 0.0, 225.0, 245.0, 312.0, 120.0, 268.0, 787.0, 354.0),
+            DoorTrigger("Morale0A", "Left", 735.0, 960.0, 245.0, 312.0, 855.0, 268.0, 192.0, 349.0),
         ),
     ),
     ScreenSpec(
@@ -130,8 +130,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale0B", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Crosslower", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Morale0B", "Right", 0.0, 225.0, 245.0, 312.0, 120.0, 270.0, 787.0, 350.0),
+            DoorTrigger("Crosslower", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 266.0, 186.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -142,7 +142,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="captain",
         npc_max_hp=15000.0,
         doors=(
-            DoorTrigger("Morale0C", "Top", 360.0, 580.0, 450.0, 530.0, 485.0, 490.0, 465.0, 310.0),
+            DoorTrigger("Morale0C", "Top", 360.0, 580.0, 445.0, 530.0, 485.0, 480.0, 483.0, 472.0),
         ),
     ),
     ScreenSpec(
@@ -153,7 +153,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource0A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Resource0A", "Left", 780.0, 960.0, 245.0, 312.0, 855.0, 268.0, 188.0, 351.0),
         ),
     ),
     ScreenSpec(
@@ -164,8 +164,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource0B", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Crossupper", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Resource0B", "Right", 0.0, 235.0, 245.0, 312.0, 120.0, 268.0, 785.0, 350.0),
+            DoorTrigger("Crossupper", "Left", 755.0, 960.0, 245.0, 312.0, 855.0, 270.0, 192.0, 351.0),
         ),
     ),
     ScreenSpec(
@@ -176,9 +176,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="mid",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale0A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Morale1A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
-            DoorTrigger("Crossupper", "Bottom", 400.0, 530.0, 220.0, 275.0, 465.0, 260.0, 485.0, 420.0),
+            DoorTrigger("Morale0A", "Right", 0.0, 230.0, 245.0, 312.0, 120.0, 270.0, 789.0, 349.0),
+            DoorTrigger("Morale1A", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 268.0, 186.0, 354.0),
+            DoorTrigger("Crossupper", "Bottom", 400.0, 530.0, 240.0, 305.0, 465.0, 258.0, 488.0, 429.0),
         ),
     ),
     ScreenSpec(
@@ -189,9 +189,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="top",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Resource0A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Resource1A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
-            DoorTrigger("Crosslower", "Middle", 360.0, 600.0, 450.0, 530.0, 485.0, 490.0, 465.0, 320.0),
+            DoorTrigger("Resource0A", "Right", 0.0, 230.0, 245.0, 315.0, 120.0, 275.0, 785.0, 350.0),
+            DoorTrigger("Resource1A", "Left", 745.0, 960.0, 245.0, 315.0, 855.0, 275.0, 185.0, 347.0),
+            DoorTrigger("Crosslower", "Middle", 120.0, 900.0, 450.0, 530.0, 485.0, 482.0, 490.0, 342.0),
         ),
     ),
     ScreenSpec(
@@ -202,8 +202,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Crossupper", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Resource1B", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Crossupper", "Right", 0.0, 185.0, 245.0, 315.0, 115.0, 275.0, 787.0, 351.0),
+            DoorTrigger("Resource1B", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 268.0, 188.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -214,7 +214,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource1A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Resource1A", "Right", 0.0, 225.0, 245.0, 312.0, 120.0, 268.0, 785.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -225,7 +225,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="captain",
         npc_max_hp=15000.0,
         doors=(
-            DoorTrigger("Morale1C", "Top", 360.0, 580.0, 450.0, 530.0, 410.0, 490.0, 465.0, 310.0),
+            DoorTrigger("Morale1C", "Top", 360.0, 580.0, 445.0, 530.0, 410.0, 480.0, 409.0, 471.0),
         ),
     ),
     ScreenSpec(
@@ -236,8 +236,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Crosslower", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Morale1B", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Crosslower", "Right", 0.0, 230.0, 245.0, 312.0, 120.0, 268.0, 787.0, 349.0),
+            DoorTrigger("Morale1B", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 268.0, 190.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -248,8 +248,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale1A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Morale1C", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Morale1A", "Right", 0.0, 230.0, 245.0, 312.0, 120.0, 270.0, 785.0, 350.0),
+            DoorTrigger("Morale1C", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 270.0, 190.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -260,9 +260,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale1B", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
-            DoorTrigger("Captain1", "Spawn", 400.0, 540.0, 220.0, 275.0, 465.0, 260.0, 410.0, 420.0),
-            DoorTrigger("Enter1", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Morale1B", "Right", 0.0, 235.0, 245.0, 312.0, 120.0, 270.0, 785.0, 350.0),
+            DoorTrigger("Captain1", "Spawn", 390.0, 520.0, 220.0, 285.0, 430.0, 255.0, 437.0, 271.0),
+            DoorTrigger("Enter1", "Left", 750.0, 960.0, 245.0, 312.0, 855.0, 268.0, 185.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -273,10 +273,11 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="safezone",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale1C", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Morale1C", "Right", 0.0, 220.0, 245.0, 315.0, 120.0, 268.0, 785.0, 350.0),
         ),
     ),
 )
+
 
 SCREEN_BY_CELL: dict[str, ScreenSpec] = {s.cell: s for s in BLUDRUT_SCREENS}
 
@@ -302,6 +303,31 @@ def compute_cell_graph_distances() -> dict[tuple[str, str], int]:
 
 
 CELL_GRAPH_DIST: dict[tuple[str, str], int] = compute_cell_graph_distances()
+
+
+def find_door_toward_cell(from_cell: str, goal_cell: str) -> DoorTrigger | None:
+    """Finds the DoorTrigger in `from_cell` that leads along the BFS shortest path to `goal_cell`."""
+    if from_cell == goal_cell:
+        return None
+    screen = SCREEN_BY_CELL.get(from_cell)
+    if not screen or not screen.doors:
+        return None
+    from collections import deque
+    queue = deque([(d, d.target_cell) for d in screen.doors])
+    visited = {from_cell}
+    while queue:
+        first_door, curr = queue.popleft()
+        if curr == goal_cell:
+            return first_door
+        if curr in visited:
+            continue
+        visited.add(curr)
+        curr_screen = SCREEN_BY_CELL.get(curr)
+        if curr_screen:
+            for nd in curr_screen.doors:
+                if nd.target_cell not in visited:
+                    queue.append((first_door, nd.target_cell))
+    return screen.doors[0]
 
 
 def check_trajectory_door_collision(
@@ -451,9 +477,10 @@ class Bludrut1v1Env(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, max_steps: int = 800, opponent_policy: Any = None, seed: int | None = None):
+    def __init__(self, max_steps: int = 6000, target_kills: int = 10, opponent_policy: Any = None, seed: int | None = None):
         super().__init__()
         self.max_steps = max_steps
+        self.target_kills = target_kills
         self.opponent_policy = opponent_policy
         self.rng = np.random.default_rng(seed)
 
@@ -470,9 +497,16 @@ class Bludrut1v1Env(gym.Env):
         self.npc_hp: dict[str, float] = {}
         self.step_count = 0
         self.wave_won = False
+        self.blue_kills = 0
+        self.red_kills = 0
+        self.enemy_returning_to_sz = False
+        self.last_kill_event = ""
+        self.last_opp_action = 0
         self.agent_sz_time: float = 0.0
         self.agent_has_exited_sz: bool = False
         self.agent_attempted_illegal_sz_entry: bool = False
+        self.agent_no_combat_away_from_mid_time: float = 0.0
+        self.agent_entered_mid: bool = False
 
     def _load_calibrated_spec(self) -> None:
         if SPEC_PATH.exists():
@@ -518,13 +552,20 @@ class Bludrut1v1Env(gym.Env):
 
         self.step_count = 0
         self.wave_won = False
+        self.blue_kills = 0
+        self.red_kills = 0
+        self.enemy_returning_to_sz = False
+        self.last_kill_event = ""
+        self.last_opp_action = 0
 
-        # Curriculum / Full-Map Spawn Distribution:
-        # 60% of episodes: Realistic Safezone Match Flow (Enter0 vs Enter1)
-        # 30% of episodes: Adjacent corridors (Morale0C vs Morale0B, Morale1B vs Morale1C, Crosslower)
-        # 10% of episodes: Close quarters clashes in Captain rooms / Mid
+        # Curriculum / Full-Map Spawn Distribution across all 16 screens:
+        # 40%: Standard Match Flow (Enter0 vs Enter1 safezones)
+        # 25%: Main Corridor clashes (Morale0A..0C, Morale1A..1C, Crosslower)
+        # 15%: Upper Bridge Top & Restorer rooms (Crossupper, Resource0A/B, Resource1A/B)
+        # 10%: Captain room sieges (Captain0, Captain1)
+        # 10%: Inter-floor chases (e.g. Crosslower vs Crossupper, Morale0C vs Captain0)
         spawn_type = float(self.rng.random())
-        if spawn_type < 0.60:
+        if spawn_type < 0.40:
             self.agent = FighterState(
                 "Uma", "blue", "Enter0",
                 350.0 + float(self.rng.uniform(-30, 30)),
@@ -535,25 +576,38 @@ class Bludrut1v1Env(gym.Env):
                 600.0 + float(self.rng.uniform(-30, 30)),
                 360.0 + float(self.rng.uniform(-20, 20))
             )
-        elif spawn_type < 0.90:
-            rooms = ["Morale0C", "Morale0B", "Crosslower", "Morale1B", "Morale1C"]
-            c_agent = str(self.rng.choice(rooms))
-            c_opp = c_agent if self.rng.random() < 0.5 else str(self.rng.choice(rooms))
+        elif spawn_type < 0.65:
+            corridor_rooms = ["Morale0C", "Morale0B", "Morale0A", "Crosslower", "Morale1A", "Morale1B", "Morale1C"]
+            c_agent = str(self.rng.choice(corridor_rooms))
+            c_opp = c_agent if self.rng.random() < 0.5 else str(self.rng.choice(corridor_rooms))
             ax = float(self.rng.uniform(240.0, 420.0))
             ay = float(self.rng.uniform(300.0, 420.0))
             ex = float(self.rng.uniform(540.0, 720.0))
             ey = float(self.rng.uniform(300.0, 420.0))
             self.agent = FighterState("Uma", "blue", c_agent, ax, ay)
             self.enemy = FighterState("Opponent", "red", c_opp, ex, ey)
-        else:
-            c = str(self.rng.choice(["Captain0", "Captain1", "Crosslower"]))
+        elif spawn_type < 0.80:
+            upper_rooms = ["Resource0B", "Resource0A", "Crossupper", "Resource1A", "Resource1B"]
+            c_agent = str(self.rng.choice(upper_rooms))
+            c_opp = c_agent if self.rng.random() < 0.5 else str(self.rng.choice(upper_rooms))
+            self.agent = FighterState("Uma", "blue", c_agent, float(self.rng.uniform(240.0, 420.0)), float(self.rng.uniform(300.0, 400.0)))
+            self.enemy = FighterState("Opponent", "red", c_opp, float(self.rng.uniform(540.0, 720.0)), float(self.rng.uniform(300.0, 400.0)))
+        elif spawn_type < 0.90:
+            c = str(self.rng.choice(["Captain0", "Captain1"]))
             self.agent = FighterState("Uma", "blue", c, 380.0, 360.0)
             self.enemy = FighterState("Opponent", "red", c, 580.0, 360.0)
+        else:
+            pairs = [("Crosslower", "Crossupper"), ("Crossupper", "Crosslower"), ("Morale0C", "Captain0"), ("Morale1C", "Captain1")]
+            c_ag, c_en = self.rng.choice(pairs)
+            self.agent = FighterState("Uma", "blue", str(c_ag), 480.0, 360.0)
+            self.enemy = FighterState("Opponent", "red", str(c_en), 480.0, 360.0)
 
         self.npc_hp = {s.cell: s.npc_max_hp for s in BLUDRUT_SCREENS if s.npc_max_hp > 0}
         self.agent_sz_time = 0.0
         self.agent_has_exited_sz = (self.agent.cell not in ("Enter0", "Enter1"))
         self.agent_attempted_illegal_sz_entry = False
+        self.agent_no_combat_away_from_mid_time = 0.0
+        self.agent_entered_mid = (self.agent.cell == "Crosslower")
 
         return self._get_obs(self.agent, self.enemy), {}
 
@@ -573,6 +627,21 @@ class Bludrut1v1Env(gym.Env):
         npc_max = me_screen.npc_max_hp
         has_safe_npc = 1.0 if (npc_max > 0 and npc_cur_hp >= 2000.0 and (npc_cur_hp / npc_max) >= 0.35) else 0.0
 
+        target_nav_cell = opp.cell if (opp.cell == "Crosslower" or opp.cell.startswith("Morale1")) else "Crosslower"
+        next_door = find_door_toward_cell(me.cell, target_nav_cell) if not same_cell else None
+
+        if same_cell:
+            target_rel_x = (opp.x - me.x) / 960.0
+            target_rel_y = (opp.y - me.y) / 550.0
+        elif next_door:
+            target_rel_x = (next_door.aim_x - me.x) / 960.0
+            target_rel_y = (next_door.aim_y - me.y) / 550.0
+        else:
+            target_rel_x = 0.0
+            target_rel_y = 0.0
+
+        mid_timer_ratio = min(1.0, self.agent_no_combat_away_from_mid_time / 60.0)
+
         obs = np.array(
             [
                 me.hp / me.max_hp,                                  # 0: self HP ratio
@@ -589,10 +658,10 @@ class Bludrut1v1Env(gym.Env):
                 1.0 if me.cooldowns[2] <= 0.0 else 0.0,             # 11: skill 2 ready
                 1.0 if me.cooldowns[3] <= 0.0 else 0.0,             # 12: skill 3 ready
                 1.0 if me.cooldowns[4] <= 0.0 else 0.0,             # 13: skill 4 ready
-                min(1.0, max(0.0, me.cooldowns[1] / self.skill_cds[1])), # 14: skill 1 CD ratio
-                min(1.0, max(0.0, me.cooldowns[2] / self.skill_cds[2])), # 15: skill 2 CD ratio
-                min(1.0, max(0.0, me.cooldowns[3] / self.skill_cds[3])), # 16: skill 3 CD ratio
-                min(1.0, max(0.0, me.cooldowns[4] / self.skill_cds[4])), # 17: skill 4 CD ratio
+                opp_screen.index / 15.0,                            # 14: opp screen index
+                float(np.clip(target_rel_x, -1.0, 1.0)),            # 15: primary target relative X (opp in room, or exit door when roaming)
+                float(np.clip(target_rel_y, -1.0, 1.0)),            # 16: primary target relative Y (opp in room, or exit door when roaming)
+                mid_timer_ratio,                                    # 17: 1-minute tournament rule progress
                 1.0 if (me.on_guard_rem > 0 or me.prepared_strike_rem > 0) else 0.0, # 18: self has buff
                 1.0 if me.stun_rem > 0.0 else 0.0,                  # 19: self stunned
                 1.0 if opp.hp > 0.0 else 0.0,                       # 20: opp alive
@@ -644,7 +713,7 @@ class Bludrut1v1Env(gym.Env):
                 can_enter_sz = False
                 if door.target_cell == "Enter0" and f.team == "blue" and self.wave_won:
                     can_enter_sz = True
-                elif door.target_cell == "Enter1" and f.team == "red" and self.wave_won:
+                elif door.target_cell == "Enter1" and f.team == "red" and (self.wave_won or self.enemy_returning_to_sz):
                     can_enter_sz = True
 
                 if not can_enter_sz:
@@ -748,10 +817,12 @@ class Bludrut1v1Env(gym.Env):
                 self._step_toward_cell(f, opp.cell, sprint=sprint)
 
         elif action in (7, 8):  # KITE_AWAY / SPRINT_KITE_AWAY (stay inside screen)
-            sprint = action == 8
+            sprint = (action == 8) and (f.sp >= 50.0)
+            if sprint:
+                f.sp = max(0.0, f.sp - 5.0)
             if same_cell:
-                away_x = 180.0 if opp.x > f.x else 780.0
-                away_y = 270.0 if opp.y > 360.0 else 430.0
+                away_x = 100.0 if opp.x > f.x else 860.0
+                away_y = 280.0 if opp.y > 360.0 else 440.0
                 self._move_fighter(f, away_x, away_y, sprint=sprint, allow_door=False)
 
         elif action == 9:  # JUKE_VERTICAL (up/down y-axis juke inside screen)
@@ -770,17 +841,14 @@ class Bludrut1v1Env(gym.Env):
 
         elif action == 11:  # WALK_DOOR_FORWARD (toward opponent / enemy side)
             target_cell = opp.cell if not same_cell else ("Morale1A" if f.team == "blue" else "Morale0A")
-            sprint = f.sp >= 50.0
+            self._step_toward_cell(f, target_cell, sprint=False)
+
+        elif action in (12, 13):  # WALK_DOOR_BACKWARD / SPRINT_DOOR_BACKWARD (retreat to Safezone)
+            sprint = (action == 13) and (f.sp >= 50.0)
             if sprint:
                 f.sp = max(0.0, f.sp - 5.0)
-            self._step_toward_cell(f, target_cell, sprint=sprint)
-
-        elif action in (12, 13):  # WALK_DOOR_BACKWARD / SPRINT_DOOR_BACKWARD (retreat to adjacent screen for OOC regen)
-            sprint = action == 13
-            retreat_cell = "Morale0C" if f.team == "blue" else "Morale1C"
-            if f.cell == retreat_cell:
-                retreat_cell = "Morale0B" if f.team == "blue" else "Morale1B"
-            self._step_toward_cell(f, retreat_cell, sprint=sprint)
+            target_sz = "Enter0" if f.team == "blue" else "Enter1"
+            self._step_toward_cell(f, target_sz, sprint=sprint)
 
         # Skill activations (3=a1, 4=a2, 5=a3, 6=a4)
         elif action in (3, 4, 5, 6):
@@ -869,7 +937,7 @@ class Bludrut1v1Env(gym.Env):
         same_cell = f.cell == opp.cell
         dist = math.hypot(f.x - opp.x, f.y - opp.y) if same_cell else 9999.0
 
-        # 1. Execute Movement
+        # 1. Execute Unified 100% Atomic Continuous Spatial Movement
         if move_act in (1, 2):
             sprint = (move_act == 2)
             if sprint and f.sp < 50.0:
@@ -877,17 +945,15 @@ class Bludrut1v1Env(gym.Env):
 
             start_x, start_y = f.x, f.y
 
+            # Map normalized [0, 1] continuous coordinates to full arena walkable canvas [40, 920] x [240, 500]
             if norm_x is not None and norm_y is not None:
-                target_x = max(20.0, min(940.0, norm_x * 960.0))
-                target_y = max(240.0, min(500.0, norm_y * 550.0))
-                self._move_fighter(f, target_x, target_y, sprint=sprint, allow_door=True)
+                target_x = 40.0 + float(np.clip(norm_x, 0.0, 1.0)) * 880.0
+                target_y = 240.0 + float(np.clip(norm_y, 0.0, 1.0)) * 260.0
             else:
-                if same_cell:
-                    f.target_kind = "opponent"
-                    if dist > MELEE_RANGE * 0.75:
-                        self._move_fighter(f, opp.x, opp.y, sprint=sprint, allow_door=False)
-                else:
-                    self._step_toward_cell(f, opp.cell, sprint=sprint)
+                target_x, target_y = f.x, f.y
+
+            # allow_door=True: Passing through door trigger physically transitions screens!
+            self._move_fighter(f, target_x, target_y, sprint=sprint, allow_door=True)
 
             disp = math.hypot(f.x - start_x, f.y - start_y)
             if sprint:
@@ -896,7 +962,9 @@ class Bludrut1v1Env(gym.Env):
                 if disp < 2.0:
                     stall_penalty = 0.05 * (1.0 - disp / 16.0)
 
-        # 2. Execute Atomic Combat Action (0=NONE, 1=AA, 2=S1, 3=S2, 4=S3, 5=S4)
+        # 2. Recalculate spatial distance post-movement:
+        same_cell = f.cell == opp.cell
+        dist = math.hypot(f.x - opp.x, f.y - opp.y) if same_cell else 9999.0
         if same_cell:
             f.target_kind = "opponent"
 
@@ -962,32 +1030,10 @@ class Bludrut1v1Env(gym.Env):
         """Finds the door in `f.cell` leading toward `goal_cell` (BFS shortest path) and walks/sprints to its `aim_x, aim_y`."""
         if f.cell == goal_cell:
             return
-        screen = SCREEN_BY_CELL.get(f.cell)
-        if not screen or not screen.doors:
+        door = find_door_toward_cell(f.cell, goal_cell)
+        if door is None:
             return
-
-        from collections import deque
-        queue = deque([(d, d.target_cell) for d in screen.doors])
-        visited = {f.cell}
-        chosen_door = screen.doors[0]
-
-        while queue:
-            first_door, curr = queue.popleft()
-            if curr == goal_cell:
-                chosen_door = first_door
-                break
-            if curr in visited:
-                continue
-            visited.add(curr)
-            curr_screen = SCREEN_BY_CELL.get(curr)
-            if curr_screen:
-                for nd in curr_screen.doors:
-                    if nd.target_cell not in visited:
-                        if nd.target_cell in ("Enter0", "Enter1") and not self.wave_won:
-                            continue
-                        queue.append((first_door, nd.target_cell))
-
-        self._move_fighter(f, chosen_door.aim_x, chosen_door.aim_y, sprint=sprint, allow_door=True)
+        self._move_fighter(f, door.aim_x, door.aim_y, sprint=sprint, allow_door=True)
 
     def _tick_timers_and_regen(self, f: FighterState) -> None:
         for i in range(5):
@@ -1018,54 +1064,143 @@ class Bludrut1v1Env(gym.Env):
                     # First transition tick (+3 MP)
                     f.mp = min(f.max_mp, f.mp + OOC_FIRST_TICK_MP)
 
+        # Fast Safezone Rest Recovery (AQW /rest in safezone restores ~20% per sec)
+        if f.cell in ("Enter0", "Enter1") and not f.in_combat:
+            f.hp = min(f.max_hp, f.hp + f.max_hp * 0.20 * DT_SEC)
+            f.mp = min(f.max_mp, f.mp + f.max_mp * 0.20 * DT_SEC)
+            f.sp = min(f.max_sp, f.sp + f.max_sp * 0.20 * DT_SEC)
+
     def _heuristic_opponent_action(self, opp: FighterState, ag: FighterState) -> int:
-        """Strong tactical Battle Warrior opponent baseline for curriculum & evaluation."""
-        obs = self._get_obs(opp, ag)
+        """
+        Greedy Tactical 3-4-5-2 Opponent:
+        1. Greedy Approach: Always walks towards Blue Agent (NO sprint during approach to save SP!).
+        2. In Melee: Executes combo priority:
+           - 3 (Skill 2: Imbalancing Strike 4s Stun "Off Balance")
+           - 4 (Skill 3: Prepared Strike Crit Buff)
+           - 5 (Skill 4: On Guard 50% Barrier)
+           - 2 (Skill 1: Decisive Strike Damage Burst)
+           - AA auto-fires
+        3. Tactical Retreat / Kite: When Blue Agent is NO LONGER stunned (stun expired)
+           AND Off Balance is still on cooldown:
+           - Retreats / kites away from Blue using SPRINT (if SP >= 50) until Off Balance is ready again!
+           - Sprint is strictly reserved for this retreat only!
+        4. Post-Kill Safezone Rest: When Red eliminates Blue:
+           - Walks directly back to Safezone (Enter1).
+           - Rests until HP and MP are 100% full.
+           - Once full, departs immediately back to combat!
+        """
         if self.opponent_policy is not None:
+            obs = self._get_obs(opp, ag)
             return int(self.opponent_policy(obs))
+
+        # 1. Post-Kill Behavior: Walk back to Safezone (Enter1) and rest until full
+        if self.enemy_returning_to_sz:
+            if opp.cell != "Enter1":
+                self._step_toward_cell(opp, "Enter1", sprint=False)
+                return 0
+            else:
+                # Inside Safezone: Rest until 100% full HP and MP
+                if opp.hp >= opp.max_hp - 1.0 and opp.mp >= opp.max_mp - 1.0:
+                    self.enemy_returning_to_sz = False
+                return 0  # Rest in place in safezone
 
         same_cell = opp.cell == ag.cell
         dist = math.hypot(opp.x - ag.x, opp.y - ag.y) if same_cell else 9999.0
 
-        # Retreat through door for OOC regen if HP is low and opponent is stunned or far
-        if opp.hp / opp.max_hp < 0.32 and (ag.stun_rem > 1.0 or dist > 260.0):
-            return 13 if opp.sp >= 50.0 else 12
-
-        # Stay out of combat to catch the 6s regen tick if recovering HP/MP
-        if not same_cell and opp.hp / opp.max_hp < 0.70 and not opp.in_combat:
-            return 0
-
+        # 2. Inter-screen Navigation & Mid Control:
+        # Competitive meta: Red does NOT blindly hunt Blue deep into Blue's B2/B3/SZ!
+        # Red controls Mid (Crosslower) and holds position near the B1 door (x=260, y=350) ready to engage.
         if not same_cell:
-            return 11
+            red_territory = ("Morale1A", "Morale1B", "Morale1C", "Resource1A", "Resource1B", "Captain1")
+            # If Blue invaded Red's territory, intercept and defend!
+            if ag.cell in red_territory:
+                self._step_toward_cell(opp, ag.cell, sprint=False)
+                return 0
 
-        # Kite away if agent has On Guard (-50% damage wall) and opponent doesn't
-        if ag.on_guard_rem > 2.0 and opp.on_guard_rem <= 0.0 and dist < 350.0:
+            # If Red is not yet in Mid (Crosslower), advance forward toward Mid
+            if opp.cell != "Crosslower":
+                self._step_toward_cell(opp, "Crosslower", sprint=False)
+                return 0
+
+            # Red is in Mid (Crosslower)!
+            # Blue is in Blue's territory (Morale0A, Morale0B, Morale0C, Enter0) or Top.
+            # Red holds position near the B1 door threshold (x=260, y=350) watching the entrance.
+            target_hold_x, target_hold_y = 260.0, 350.0
+            dist_to_hold = math.hypot(opp.x - target_hold_x, opp.y - target_hold_y)
+            if dist_to_hold > 30.0:
+                self._move_fighter(opp, target_hold_x, target_hold_y, sprint=False, allow_door=False)
+            return 0  # Wait in combat stance at Mid doorway
+
+        # 3. Intra-screen Combat:
+        # Check if Blue is no longer stunned AND Red's Stun is on cooldown
+        s2_ready = (opp.cooldowns[2] <= 0.0) and (opp.mp >= 30.0)
+
+        if ag.stun_rem <= 0.0 and not s2_ready:
+            # Stun has worn off and Off Balance is on cooldown -> MUNDUR / KITE!
+            # Use sprint if SP >= 50!
             return 8 if opp.sp >= 50.0 else 7
 
+        # 4. If Blue IS stunned OR Red is ready to land Stun:
         if dist > MELEE_RANGE:
-            return 2 if (opp.sp >= 50.0 and dist > 480.0) else 1
+            # Approach Blue into melee, WALK ONLY (preserve SP for retreat)
+            return 1
 
-        # In melee range:
-        if opp.cooldowns[4] <= 0.0 and opp.mp >= 30.0 and opp.hp / opp.max_hp < 0.88:
-            return 6  # On Guard (a4)
-        if opp.cooldowns[2] <= 0.0 and opp.mp >= 30.0 and ag.stun_rem <= 0.2:
-            return 4  # Imbalancing Strike (a2 4s stun)
-        if opp.cooldowns[3] <= 0.0 and opp.mp >= 35.0 and opp.prepared_strike_stacks == 0:
-            return 5  # Prepared Strike (a3)
-        if opp.cooldowns[1] <= 0.0 and opp.mp >= 15.0 and ag.on_guard_rem <= 1.0:
-            return 3  # Decisive Strike (a1)
-        return 0
+        # 5. In Melee Range: Execute combo 3 - 4 - 5 - 2
+        # Priority 1: Key 3 (Skill 2: Imbalancing Strike 4s Stun "Off Balance", CD=10s, MP=30)
+        if opp.cooldowns[2] <= 0.0 and opp.mp >= 30.0:
+            return 4  # USE_SKILL_2
+
+        # Priority 2: Key 4 (Skill 3: Prepared Strike Crit Buff, CD=15s, MP=20)
+        if opp.cooldowns[3] <= 0.0 and opp.mp >= 20.0 and opp.prepared_strike_stacks == 0:
+            return 5  # USE_SKILL_3
+
+        # Priority 3: Key 5 (Skill 4: On Guard 50% Barrier, CD=30s, MP=30)
+        if opp.cooldowns[4] <= 0.0 and opp.mp >= 30.0 and opp.on_guard_rem <= 0.0:
+            return 6  # USE_SKILL_4
+
+        # Priority 4: Key 2 (Skill 1: Decisive Strike Damage, CD=2s, MP=15)
+        if opp.cooldowns[1] <= 0.0 and opp.mp >= 15.0:
+            return 3  # USE_SKILL_1
+
+        return 0  # FIGHT_STAND (Auto Attack)
+
+    def _respawn_fighter(self, f: FighterState, cell: str, x: float, y: float) -> None:
+        """Respawns fighter at designated safezone pad matching AQW /bludrutbrawl rules."""
+        f.hp = f.max_hp
+        f.mp = f.max_mp
+        f.sp = f.max_sp
+        f.cell = cell
+        f.x = x
+        f.y = y
+        f.in_combat = False
+        f.time_since_last_combat_action = 12.0
+        f.cooldowns = [0.0, 0.0, 0.0, 0.0, 0.0]
+        f.stun_rem = 0.0
+        f.prepared_strike_rem = 0.0
+        f.prepared_strike_stacks = 0
+        f.on_guard_rem = 0.0
+        f.door_cooldown = 1.0
+        f.target_kind = "opponent"
+        if f == self.agent:
+            self.agent_no_combat_away_from_mid_time = 0.0
+            self.agent_entered_mid = False
 
     def step(self, action: int | tuple | list | np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         self.step_count += 1
         opp_action = self._heuristic_opponent_action(self.enemy, self.agent)
+        self.last_opp_action = opp_action
 
         prev_agent_cell = self.agent.cell
         prev_enemy_cell = self.enemy.cell
+        prev_agent_x = self.agent.x
+        prev_agent_y = self.agent.y
         prev_agent_hp = self.agent.hp
         prev_enemy_hp = self.enemy.hp
         prev_agent_mp = self.agent.mp
         prev_agent_sp = self.agent.sp
+
+        combat_act = int(action[0]) if isinstance(action, (tuple, list, np.ndarray)) else int(action)
+        move_act = int(action[1]) if isinstance(action, (tuple, list, np.ndarray)) else 0
 
         if isinstance(action, (tuple, list, np.ndarray)):
             dmg_by_agent, pen_agent, agent_mit = self._apply_compound_action(self.agent, self.enemy, action)
@@ -1088,10 +1223,21 @@ class Bludrut1v1Env(gym.Env):
         # 3. Crowd Control Dividend (incapacitating the opponent in-combat)
         r_stun = 0.04 if (self.enemy.stun_rem > 0.0 and self.enemy.cell == self.agent.cell) else 0.0
 
-        # 4. Navigation Potential Reward across 16 screens
-        prev_hop_dist = CELL_GRAPH_DIST.get((prev_agent_cell, prev_enemy_cell), 0)
-        curr_hop_dist = CELL_GRAPH_DIST.get((self.agent.cell, self.enemy.cell), 0)
-        r_nav = (prev_hop_dist - curr_hop_dist) * 0.25
+        # 4. Navigation Potential Reward across 16 screens (PBRS)
+        if self.agent.cell != self.enemy.cell:
+            target_nav_cell = self.enemy.cell if (self.enemy.cell == "Crosslower" or self.enemy.cell.startswith("Morale1")) else "Crosslower"
+            prev_hop_dist = CELL_GRAPH_DIST.get((prev_agent_cell, target_nav_cell), 0)
+            curr_hop_dist = CELL_GRAPH_DIST.get((self.agent.cell, target_nav_cell), 0)
+            r_nav = (prev_hop_dist - curr_hop_dist) * 0.40
+
+            # Intra-room spatial door guidance: guide (targetX, targetY) clicks toward exit door
+            target_door = find_door_toward_cell(self.agent.cell, target_nav_cell)
+            if target_door:
+                prev_d_door = math.hypot(prev_agent_x - target_door.aim_x, prev_agent_y - target_door.aim_y)
+                curr_d_door = math.hypot(self.agent.x - target_door.aim_x, self.agent.y - target_door.aim_y)
+                r_nav += max(-0.04, min(0.04, (prev_d_door - curr_d_door) / 500.0 * 0.1))
+        else:
+            r_nav = 0.0
 
         # 5. Dynamic Concave Mana Potential (Logarithmic Diminishing Marginal Utility)
         def mana_potential(mp: float) -> float:
@@ -1130,28 +1276,123 @@ class Bludrut1v1Env(gym.Env):
             r_sz -= 5.0  # Severe penalty for attempting illegal retreat into Safezone while enemy is alive
             self.agent_attempted_illegal_sz_entry = False
 
-        reward = r_ehp + r_mitigation + r_stun + r_nav + f_mana + f_stamina + r_time + r_sz - pen_agent
+        # 8b. Intra-Room Tactical Spacing & Stutter-Step Dynamics
+        r_tactical = 0.0
+        dist = math.hypot(self.agent.x - self.enemy.x, self.agent.y - self.enemy.y) if self.agent.cell == self.enemy.cell else 9999.0
+        if self.agent.cell == self.enemy.cell:
+            # Engage dividend: when offensive skills are ready and enemy has NO barrier, reward closing to melee
+            if (self.agent.cooldowns[1] <= 0.0 or self.agent.cooldowns[2] <= 0.0) and self.enemy.on_guard_rem <= 0.0:
+                r_tactical += 0.03 * (1.0 - min(1.0, dist / 300.0))
+            # Spacing / Kiting dividend: when opponent has On Guard barrier (-50%), reward kiting away!
+            if self.enemy.on_guard_rem > 0.0:
+                if dist > 200.0:
+                    r_tactical += 0.06  # Reward maintaining safe distance while enemy has barrier
+                else:
+                    r_tactical -= 0.03  # Disincentivize face-tanking into enemy 50% barrier
+            # Stutter-step dividend: reward moving simultaneously while attacking
+            if move_act in (1, 2) and combat_act in (1, 2, 3, 4, 5):
+                r_tactical += 0.02
+            # Anti-corner penalty: penalize hugging room edges / corners during fight
+            if self.agent.x < 70.0 or self.agent.x > 890.0 or self.agent.y < 265.0 or self.agent.y > 475.0:
+                r_tactical -= 0.02
+
+        # 8c. Mid Objective & Anti-Stalling / 1-Minute Tournament Rule Enforcement
+        # In competitive BludrutBrawl, players must contest Mid (Crosslower) within 60s if out of combat.
+        # Camping in B3/B2/SZ is toxic and penalized heavily!
+        r_mid = 0.0
+        r_stall = 0.0
+        is_combat = (
+            self.agent.in_combat or
+            self.enemy.in_combat or
+            dmg_dealt > 0.0 or
+            dmg_taken > 0.0 or
+            (self.agent.cell == self.enemy.cell and dist <= 300.0)
+        )
+
+        if self.agent.cell == "Crosslower":
+            self.agent_no_combat_away_from_mid_time = 0.0
+            if not self.agent_entered_mid:
+                self.agent_entered_mid = True
+                r_mid += 1.0  # Big arrival dividend for reaching & contesting Mid
+            r_mid += 0.01  # Mid presence control dividend
+        elif is_combat:
+            self.agent_no_combat_away_from_mid_time = 0.0
+        else:
+            self.agent_entered_mid = False
+            self.agent_no_combat_away_from_mid_time += DT_SEC
+
+            # Stalling penalty:
+            # 0..20s: Grace traversal period from Safezone/B3 to Mid
+            # 20..60s: Escalating anti-camping shaping penalty
+            if self.agent_no_combat_away_from_mid_time > 20.0:
+                elapsed_excess = self.agent_no_combat_away_from_mid_time - 20.0
+                r_stall += 0.03 * min(1.0, elapsed_excess / 40.0)
+
+            # > 60s: CRITICAL 1-MINUTE TOURNAMENT RULE VIOLATION (TOXIC CAMPING)
+            if self.agent_no_combat_away_from_mid_time > 60.0:
+                r_stall += 0.50  # -5.0 penalty per second!
+                if int(self.agent_no_combat_away_from_mid_time * 10) % 50 == 0:
+                    self.last_kill_event = f"⚠️ [1-MIN RULE VIOLATION] Blue agent camping away from Mid ({self.agent_no_combat_away_from_mid_time:.1f}s)! Heavy stalling penalty applied."
+
+        reward = r_ehp + r_mitigation + r_stun + r_nav + f_mana + f_stamina + r_time + r_sz + r_tactical + r_mid - r_stall - pen_agent
 
         terminated = False
         truncated = False
         info: dict[str, Any] = {}
 
+        # Check deaths & respawns (Target: 10 Kills)
+        self.last_kill_event = ""
         if self.enemy.hp <= 0.0 and self.agent.hp <= 0.0:
-            terminated = True
-            info["winner"] = "draw"
+            self.blue_kills += 1
+            self.red_kills += 1
+            self.last_kill_event = f"⚖️ MUTUAL KILL! Score: Blue {self.blue_kills} - {self.red_kills} Red"
+            reward += 5.0
+            if self.blue_kills >= self.target_kills or self.red_kills >= self.target_kills:
+                terminated = True
+                info["winner"] = "draw" if self.blue_kills == self.red_kills else ("agent" if self.blue_kills > self.red_kills else "enemy")
+            else:
+                self._respawn_fighter(self.agent, "Enter0", 350.0, 360.0)
+                self._respawn_fighter(self.enemy, "Enter1", 600.0, 360.0)
+                self.agent_has_exited_sz = False
+                self.agent_sz_time = 0.0
+                self.wave_won = True
+                self.enemy_returning_to_sz = False
+
         elif self.enemy.hp <= 0.0:
-            terminated = True
-            self.wave_won = True
+            self.blue_kills += 1
+            self.last_kill_event = f"🏆 BLUE ELIMINATED RED! Score: Blue {self.blue_kills} - {self.red_kills} Red"
             reward += 10.0 + 5.0 * (self.agent.hp / self.agent.max_hp)
-            info["winner"] = "agent"
+            self.wave_won = True
+            if self.blue_kills >= self.target_kills:
+                terminated = True
+                info["winner"] = "agent"
+            else:
+                # Enemy respawns in Red Safezone (Enter1)
+                self._respawn_fighter(self.enemy, "Enter1", 600.0, 360.0)
+                self.enemy_returning_to_sz = False
+
         elif self.agent.hp <= 0.0:
-            terminated = True
+            self.red_kills += 1
+            self.last_kill_event = f"💀 RED ELIMINATED BLUE! Score: Blue {self.blue_kills} - {self.red_kills} Red"
             reward -= 10.0
-            info["winner"] = "enemy"
+            if self.red_kills >= self.target_kills:
+                terminated = True
+                info["winner"] = "enemy"
+            else:
+                # Agent respawns in Blue Safezone (Enter0)
+                self._respawn_fighter(self.agent, "Enter0", 350.0, 360.0)
+                self.agent_has_exited_sz = False
+                self.agent_sz_time = 0.0
+                # Red scored kill -> initiates walk back to safezone to rest!
+                self.enemy_returning_to_sz = True
+
         elif self.step_count >= self.max_steps:
             truncated = True
-            hp_diff = (self.agent.hp / self.agent.max_hp) - (self.enemy.hp / self.enemy.max_hp)
-            reward += hp_diff * 5.0
-            info["winner"] = "timeout"
+            info["winner"] = "agent" if self.blue_kills > self.red_kills else ("enemy" if self.red_kills > self.blue_kills else "draw")
+
+        info["blue_kills"] = self.blue_kills
+        info["red_kills"] = self.red_kills
+        info["kill_event"] = self.last_kill_event
+        info["stalling_time"] = self.agent_no_combat_away_from_mid_time
 
         return self._get_obs(self.agent, self.enemy), float(reward), terminated, truncated, info

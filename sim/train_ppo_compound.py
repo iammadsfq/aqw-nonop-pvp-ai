@@ -346,15 +346,32 @@ export const COMPOUND_ATOMIC_POLICY_WEIGHTS: CompoundAtomicPolicySpec = {json.du
     print(f"[Export] Successfully generated compound atomic weights at {output_path}!")
 
 
+OPP_ACTION_DETAILS: dict[int, tuple[str, str, str]] = {
+    0: ("AUTO_ATTACK", "STAND", ""),
+    1: ("APPROACH", "WALK", ""),
+    2: ("APPROACH", "SPRINT", ""),
+    3: ("DECISIVE", "STAND", "⚔️ Red CAST S1 (Decisive Strike)"),
+    4: ("IMBALANCING", "STAND", "⚡ Red CAST S2 (Imbalancing Stun 4s) -> Blue Stunned!"),
+    5: ("PREPARED", "STAND", "🔥 Red CAST S3 (Prepared Strike) -> Crit Buff!"),
+    6: ("ON_GUARD", "STAND", "🛡️ Red CAST S4 (On Guard) -> -50% Barrier!"),
+    7: ("KITE_AWAY", "WALK", "🚶 Red kiting away (stun CD)"),
+    8: ("SPRINT_KITE", "SPRINT", "💨 Red sprint-kiting away (stun CD)!"),
+    10: ("MANA_TAP", "WALK", ""),
+    11: ("SEEK_ENEMY", "WALK", ""),
+    12: ("RETURN_SZ", "WALK", "🏠 Red returning to Safezone after kill"),
+    13: ("RETURN_SZ", "SPRINT", "💨 Red returning to Safezone"),
+}
+
+
 def evaluate_and_record_match(
     model: CompoundActorCritic,
     env: Bludrut1v1Env,
     update_num: int,
-    episodes: int = 30,
+    episodes: int = 10,
 ) -> dict[str, float]:
     """
-    Evaluates policy across `episodes` and records frame-by-frame telemetry
-    of Match #1 for live broadcast to the 2D visualizer.
+    Evaluates policy and records a complete First-to-10-Kills match
+    with frame-by-frame telemetry for live broadcast to the 2D visualizer.
     """
     wins = 0
     losses = 0
@@ -362,149 +379,188 @@ def evaluate_and_record_match(
     win_hps = []
 
     model.eval()
-    best_match_frames: list[dict] = []
-    best_match_winner: str = "Red Bot"
-    found_win = False
 
-    for ep in range(episodes):
+    # 1. Record Full 10-Kill Match Replay
+    record_env = Bludrut1v1Env(max_steps=6000, target_kills=10, seed=42)
+    obs, _ = record_env.reset()
+    done = False
+    step_idx = 0
+    match_frames: list[dict] = []
+
+    while not done:
+        step_idx += 1
+        c_mask, m_mask = compute_masks(obs)
+        t_obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
+        t_cmask = torch.as_tensor(c_mask, dtype=torch.bool).unsqueeze(0)
+        t_mmask = torch.as_tensor(m_mask, dtype=torch.bool).unsqueeze(0)
+
+        with torch.no_grad():
+            c_act, m_act, coords, _, _, _ = model.get_action_and_value(
+                t_obs, t_cmask, t_mmask, deterministic=True
+            )
+
+        norm_x = float(coords[0, 0].item())
+        norm_y = float(coords[0, 1].item())
+        target_px_x = int(40.0 + max(0.0, min(1.0, norm_x)) * 880.0)
+        target_px_y = int(240.0 + max(0.0, min(1.0, norm_y)) * 260.0)
+
+        c_act_name = COMBAT_ACTION_NAMES[c_act.item()]
+        m_act_name = MOVE_TYPE_NAMES[m_act.item()]
+
+        prev_agent_cell = record_env.agent.cell
+        prev_enemy_cell = record_env.enemy.cell
+        prev_opp_hp = record_env.enemy.hp
+        prev_ag_hp = record_env.agent.hp
+
+        action = (c_act.item(), m_act.item(), norm_x, norm_y)
+        next_obs, _, term, trunc, info = record_env.step(action)
+        done = term or trunc
+
+        dmg_to_ag = max(0.0, prev_ag_hp - record_env.agent.hp)
+        agent_alias = SCREEN_BY_CELL[record_env.agent.cell].alias if record_env.agent.cell in SCREEN_BY_CELL else record_env.agent.cell
+        enemy_alias = SCREEN_BY_CELL[record_env.enemy.cell].alias if record_env.enemy.cell in SCREEN_BY_CELL else record_env.enemy.cell
+
+        logs = []
+        if record_env.agent_attempted_illegal_sz_entry:
+            logs.append("⛔ Blue retreat into Safezone blocked (-5.0 PENALTY)")
+        if prev_agent_cell in ("Enter0", "Enter1") and record_env.agent.cell not in ("Enter0", "Enter1"):
+            logs.append(f"🚪 Blue exited Safezone into {record_env.agent.cell} ({agent_alias})")
+        elif prev_agent_cell != record_env.agent.cell:
+            logs.append(f"🚪 Blue crossed door into {record_env.agent.cell} ({agent_alias})")
+
+        if prev_enemy_cell in ("Enter0", "Enter1") and record_env.enemy.cell not in ("Enter0", "Enter1"):
+            logs.append(f"🚪 Red exited Safezone into {record_env.enemy.cell} ({enemy_alias})")
+        elif prev_enemy_cell != record_env.enemy.cell:
+            logs.append(f"🚪 Red crossed door into {record_env.enemy.cell} ({enemy_alias})")
+
+        # Blue Combat Telemetry
+        ev = record_env.agent.last_combat_event
+        if ev.startswith("S1_HIT:"):
+            logs.append(f"⚔️ Blue CAST S1 (Decisive) -> dealt {ev.split(':')[1]} dmg")
+        elif ev == "S1_DODGED":
+            logs.append("💨 Blue CAST S1 (Decisive) -> DODGED by Red!")
+        elif ev.startswith("S2_STUN:"):
+            logs.append(f"⚡ Blue CAST S2 (Stun 4s) -> Opponent STUNNED! ({ev.split(':')[1]} dmg)")
+        elif ev == "S2_DODGED":
+            logs.append("💨 Blue CAST S2 (Stun 4s) -> DODGED by Red!")
+        elif ev == "S3_BUFF":
+            logs.append("🔥 Blue CAST S3 (Prepared) -> Crit buff activated")
+        elif ev.startswith("S4_GUARD:"):
+            logs.append(f"🛡️ Blue CAST S4 (On Guard) -> -50% Barrier activated! ({ev.split(':')[1]} dmg)")
+
+        aa_ev = record_env.agent.last_aa_event
+        if aa_ev.startswith("AA_HIT:"):
+            logs.append(f"⚔️ Blue hit Red -> dealt {aa_ev.split(':')[1]} dmg")
+
+        # Red Greedy Bot Telemetry
+        opp_raw_act = getattr(record_env, "last_opp_action", 0)
+        opp_act_str, opp_move_str, opp_log = OPP_ACTION_DETAILS.get(opp_raw_act, ("STAND", "STAND", ""))
+        if record_env.enemy_returning_to_sz and record_env.enemy.cell == "Enter1":
+            opp_act_str = "SAFEZONE_REST"
+            opp_move_str = "STAND"
+            opp_log = "💤 Red resting to 100% in Safezone..."
+        elif record_env.enemy.cell == "Crosslower" and record_env.agent.cell != "Crosslower":
+            opp_act_str = "HOLD_MID"
+            opp_move_str = "GUARD_DOOR"
+            if step_idx % 30 == 0:
+                opp_log = "🛡️ Red holding Mid threshold (watching Blue B1 door)"
+
+        if opp_log:
+            logs.append(opp_log)
+
+        if dmg_to_ag > 0 and not opp_log.startswith("⚔️") and not opp_log.startswith("⚡"):
+            logs.append(f"💥 Red hit Blue -> dealt {dmg_to_ag:.0f} dmg")
+
+        if info.get("kill_event"):
+            logs.append(info["kill_event"])
+
+        stalling_sec = round(info.get("stalling_time", 0.0), 1)
+        if stalling_sec > 60.0 and int(stalling_sec * 10) % 50 == 0:
+            logs.append(f"⚠️ [1-MIN RULE] Blue stalling away from Mid ({stalling_sec:.1f}s)! -5.0/s penalty applied")
+
+        log_msg = " | ".join(logs)
+
+        match_frames.append({
+            "t": round(step_idx * 0.1, 2),
+            "room": record_env.agent.cell,
+            "room_alias": agent_alias,
+            "enemy_room": record_env.enemy.cell,
+            "enemy_room_alias": enemy_alias,
+            "blue_kills": record_env.blue_kills,
+            "red_kills": record_env.red_kills,
+            "stalling_sec": stalling_sec,
+            "agent": {
+                "x": round(record_env.agent.x, 1),
+                "y": round(record_env.agent.y, 1),
+                "hp": round(record_env.agent.hp, 1),
+                "max_hp": record_env.agent.max_hp,
+                "mp": round(record_env.agent.mp, 1),
+                "max_mp": record_env.agent.max_mp,
+                "sp": round(record_env.agent.sp, 1),
+                "action": c_act_name,
+                "move": m_act_name,
+                "target_x": target_px_x,
+                "target_y": target_px_y,
+                "stun": round(record_env.agent.stun_rem, 1),
+                "on_guard": round(record_env.agent.on_guard_rem, 1),
+                "cds": [0.0] + [round(record_env.agent.cooldowns[i], 1) for i in range(1, 5)],
+            },
+            "enemy": {
+                "x": round(record_env.enemy.x, 1),
+                "y": round(record_env.enemy.y, 1),
+                "hp": round(record_env.enemy.hp, 1),
+                "max_hp": record_env.enemy.max_hp,
+                "mp": round(record_env.enemy.mp, 1),
+                "max_mp": record_env.enemy.max_mp,
+                "sp": round(record_env.enemy.sp, 1),
+                "action": opp_act_str,
+                "move": opp_move_str,
+                "stun": round(record_env.enemy.stun_rem, 1),
+                "on_guard": round(record_env.enemy.on_guard_rem, 1),
+                "cds": [0.0] + [round(record_env.enemy.cooldowns[i], 1) for i in range(1, 5)],
+            },
+            "log": log_msg,
+        })
+        obs = next_obs
+
+    final_winner = info.get("winner", "enemy")
+    rec_winner_label = "Blue Agent" if final_winner == "agent" else ("Red Bot" if final_winner == "enemy" else "Draw")
+    if final_winner == "agent":
+        wins += 1
+        win_hps.append(record_env.agent.hp / MAX_HP)
+    elif final_winner == "enemy":
+        losses += 1
+    else:
+        draws += 1
+
+    # 2. Evaluate remaining episodes for metrics
+    for ep in range(1, max(1, episodes)):
         obs, _ = env.reset()
         done = False
-        record_this = not found_win  # Record until we capture a winning match
-        ep_frames: list[dict] = []
-        step_idx = 0
-
         while not done:
-            step_idx += 1
             c_mask, m_mask = compute_masks(obs)
             t_obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
             t_cmask = torch.as_tensor(c_mask, dtype=torch.bool).unsqueeze(0)
             t_mmask = torch.as_tensor(m_mask, dtype=torch.bool).unsqueeze(0)
-
             with torch.no_grad():
                 c_act, m_act, coords, _, _, _ = model.get_action_and_value(
                     t_obs, t_cmask, t_mmask, deterministic=True
                 )
-
             norm_x = float(coords[0, 0].item())
             norm_y = float(coords[0, 1].item())
-            target_px_x = int(norm_x * 960)
-            target_px_y = int(norm_y * 520)
-
-            c_act_name = COMBAT_ACTION_NAMES[c_act.item()]
-            m_act_name = MOVE_TYPE_NAMES[m_act.item()]
-
-            prev_agent_cell = env.agent.cell
-            prev_enemy_cell = env.enemy.cell
-            prev_opp_hp = env.enemy.hp
-            prev_ag_hp = env.agent.hp
-
             action = (c_act.item(), m_act.item(), norm_x, norm_y)
-            next_obs, _, term, trunc, info = env.step(action)
+            next_obs, _, term, trunc, ep_info = env.step(action)
             done = term or trunc
-
-            if record_this:
-                dmg_to_ag = max(0.0, prev_ag_hp - env.agent.hp)
-
-                agent_alias = SCREEN_BY_CELL[env.agent.cell].alias if env.agent.cell in SCREEN_BY_CELL else env.agent.cell
-                enemy_alias = SCREEN_BY_CELL[env.enemy.cell].alias if env.enemy.cell in SCREEN_BY_CELL else env.enemy.cell
-
-                log_msg = ""
-                logs = []
-                if env.agent_attempted_illegal_sz_entry:
-                    logs.append("⛔ Blue retreat into Safezone blocked (-5.0 PENALTY)")
-                if prev_agent_cell in ("Enter0", "Enter1") and env.agent.cell not in ("Enter0", "Enter1"):
-                    logs.append(f"🚪 Blue exited Safezone into {env.agent.cell} ({agent_alias}) (+2.0 BONUS)")
-                elif prev_agent_cell != env.agent.cell:
-                    logs.append(f"🚪 Blue crossed door into {env.agent.cell} ({agent_alias})")
-
-                if prev_enemy_cell != env.enemy.cell:
-                    logs.append(f"🚪 Red crossed door into {env.enemy.cell} ({enemy_alias})")
-
-                # Parse verified physical combat telemetry from engine
-                ev = env.agent.last_combat_event
-                if ev.startswith("S1_HIT:"):
-                    logs.append(f"⚔️ Blue CAST S1 (Decisive) -> dealt {ev.split(':')[1]} dmg")
-                elif ev == "S1_DODGED":
-                    logs.append("💨 Blue CAST S1 (Decisive) -> DODGED by Red!")
-                elif ev.startswith("S2_STUN:"):
-                    logs.append(f"⚡ Blue CAST S2 (Stun 4s) -> Opponent STUNNED! ({ev.split(':')[1]} dmg)")
-                elif ev == "S2_DODGED":
-                    logs.append("💨 Blue CAST S2 (Stun 4s) -> DODGED by Red!")
-                elif ev == "S3_BUFF":
-                    logs.append("🔥 Blue CAST S3 (Prepared) -> Crit buff activated")
-                elif ev.startswith("S4_GUARD:"):
-                    logs.append(f"🛡️ Blue CAST S4 (On Guard) -> -50% Barrier activated! ({ev.split(':')[1]} dmg)")
-
-                aa_ev = env.agent.last_aa_event
-                if aa_ev.startswith("AA_HIT:"):
-                    logs.append(f"⚔️ Blue hit Red -> dealt {aa_ev.split(':')[1]} dmg")
-                elif aa_ev == "AA_DODGED":
-                    logs.append("💨 Blue auto-attack -> DODGED by Red!")
-
-                if dmg_to_ag > 0:
-                    logs.append(f"💥 Red hit Blue -> dealt {dmg_to_ag:.0f} dmg")
-
-                log_msg = " | ".join(logs)
-
-                ep_frames.append({
-                    "t": round(step_idx * 0.1, 2),
-                    "room": env.agent.cell,
-                    "room_alias": agent_alias,
-                    "enemy_room": env.enemy.cell,
-                    "enemy_room_alias": enemy_alias,
-                    "agent": {
-                        "x": round(env.agent.x, 1),
-                        "y": round(env.agent.y, 1),
-                        "hp": round(env.agent.hp, 1),
-                        "max_hp": env.agent.max_hp,
-                        "mp": round(env.agent.mp, 1),
-                        "max_mp": env.agent.max_mp,
-                        "sp": round(env.agent.sp, 1),
-                        "action": c_act_name,
-                        "move": m_act_name,
-                        "target_x": target_px_x,
-                        "target_y": target_px_y,
-                        "stun": round(env.agent.stun_rem, 1),
-                        "on_guard": round(env.agent.on_guard_rem, 1),
-                        "cds": [0.0] + [round(env.agent.cooldowns[i], 1) for i in range(1, 5)],
-                    },
-                    "enemy": {
-                        "x": round(env.enemy.x, 1),
-                        "y": round(env.enemy.y, 1),
-                        "hp": round(env.enemy.hp, 1),
-                        "max_hp": env.enemy.max_hp,
-                        "mp": round(env.enemy.mp, 1),
-                        "max_mp": env.enemy.max_mp,
-                        "sp": round(env.enemy.sp, 1),
-                        "action": "AUTO_ATTACK" if env.enemy.in_combat else "NONE",
-                        "move": "STAND",
-                        "stun": round(env.enemy.stun_rem, 1),
-                        "on_guard": round(env.enemy.on_guard_rem, 1),
-                    },
-                    "log": log_msg,
-                })
-
+            obs = next_obs
             if done:
-                winner = info.get("winner", "enemy")
-                if winner == "agent":
+                w = ep_info.get("winner", "enemy")
+                if w == "agent":
                     wins += 1
                     win_hps.append(env.agent.hp / MAX_HP)
-                    if not found_win and ep_frames:
-                        best_match_frames = ep_frames
-                        best_match_winner = "Blue Agent"
-                        found_win = True
-                elif winner == "enemy":
+                elif w == "enemy":
                     losses += 1
-                    if not best_match_frames and ep == 0:
-                        best_match_frames = ep_frames
-                        best_match_winner = "Red Bot"
                 else:
                     draws += 1
-                    if not best_match_frames and ep == 0:
-                        best_match_frames = ep_frames
-                        best_match_winner = "Draw"
-            else:
-                obs = next_obs
 
     model.train()
     total = max(1, episodes)
@@ -517,17 +573,127 @@ def evaluate_and_record_match(
 
     record_eval_match({
         "update": update_num,
-        "winner": best_match_winner,
+        "winner": rec_winner_label,
+        "blue_kills": record_env.blue_kills,
+        "red_kills": record_env.red_kills,
         "win_rate": round(metrics["win_rate"], 3),
-        "total_frames": len(best_match_frames),
-        "frames": best_match_frames,
+        "total_frames": len(match_frames),
+        "frames": match_frames,
     })
 
     return metrics
 
 
+def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int = 4000, epochs: int = 25):
+    """
+    Fast 2-second Behavioral Cloning bootstrap.
+    Teaches the network the spatial prior for door traversal and melee combos
+    so PPO starts with high competency instead of random Brownian motion.
+    """
+    print("[Expert Bootstrap] Generating synthetic pro demonstrations across 16 screens...")
+    env = Bludrut1v1Env()
+    rng = np.random.RandomState(42)
+
+    obs_list = []
+    c_list = []
+    m_list = []
+    coord_list = []
+
+    for _ in range(num_samples):
+        obs, _ = env.reset()
+        same_cell = obs[21] > 0.5
+        in_melee = obs[23] > 0.5
+        dist = obs[22] * 1000.0
+        can_sprint = obs[3] > 0.5
+        self_x = obs[7] * 960.0
+        self_y = obs[8] * 550.0
+        target_rel_x = obs[15]
+        target_rel_y = obs[16]
+        s1_ready = obs[10] > 0.5
+        s2_ready = obs[11] > 0.5
+        s3_ready = obs[12] > 0.5
+        s4_ready = obs[13] > 0.5
+        opp_buff = obs[18] > 0.5  # barrier
+
+        if not same_cell:
+            # Roaming: Head toward door
+            c_act = 4 if (s3_ready and rng.random() < 0.3) else 0  # S3 buff or NONE
+            m_act = 2 if (can_sprint and rng.random() < 0.7) else 1  # SPRINT or WALK
+            tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
+            ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
+        else:
+            # In room with opponent
+            if not in_melee:
+                # Approach
+                c_act = 4 if (s3_ready and rng.random() < 0.4) else 0
+                m_act = 2 if (can_sprint and dist > 400.0) else 1
+                tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
+                ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
+            else:
+                # In Melee
+                if opp_buff and dist < 220.0:
+                    # Kiting away from enemy barrier
+                    c_act = 0 if rng.random() < 0.5 else 1
+                    m_act = 2 if can_sprint else 1
+                    tx = np.clip(self_x - target_rel_x * 400.0, 40.0, 920.0)
+                    ty = np.clip(self_y - target_rel_y * 200.0, 240.0, 500.0)
+                else:
+                    # Tactical combat combo
+                    if s2_ready and rng.random() < 0.85:
+                        c_act = 3  # S2 Stun
+                    elif s3_ready and rng.random() < 0.7:
+                        c_act = 4  # S3 Buff
+                    elif s1_ready and rng.random() < 0.85:
+                        c_act = 2  # S1 Decisive Strike
+                    elif s4_ready and rng.random() < 0.5:
+                        c_act = 5  # S4 On Guard
+                    else:
+                        c_act = 1  # AA
+                    # Stutter-step spacing
+                    m_act = 1 if rng.random() < 0.6 else 0
+                    tx = np.clip(self_x + rng.uniform(-60.0, 60.0), 40.0, 920.0)
+                    ty = np.clip(self_y + rng.uniform(-40.0, 40.0), 240.0, 500.0)
+
+        norm_x = (tx - 40.0) / 880.0
+        norm_y = (ty - 240.0) / 260.0
+
+        obs_list.append(obs)
+        c_list.append(c_act)
+        m_list.append(m_act)
+        coord_list.append([norm_x, norm_y])
+
+    X = torch.tensor(np.array(obs_list), dtype=torch.float32)
+    Y_c = torch.tensor(np.array(c_list), dtype=torch.long)
+    Y_m = torch.tensor(np.array(m_list), dtype=torch.long)
+    Y_coord = torch.tensor(np.array(coord_list), dtype=torch.float32)
+
+    dataset = TensorDataset(X, Y_c, Y_m, Y_coord)
+    loader = DataLoader(dataset, batch_size=128, shuffle=True)
+
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    loss_fn_c = nn.CrossEntropyLoss()
+    loss_fn_m = nn.CrossEntropyLoss()
+    loss_fn_coord = nn.MSELoss()
+
+    model.train()
+    for _ in range(epochs):
+        for bx, bc, bm, bcoord in loader:
+            h2 = model.forward_backbone(bx)
+            pred_c = model.combat_head(h2)
+            pred_m = model.move_type_head(h2)
+            pred_coord = torch.sigmoid(model.coord_head(h2))
+
+            loss = loss_fn_c(pred_c, bc) + loss_fn_m(pred_m, bm) + 2.0 * loss_fn_coord(pred_coord, bcoord)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    print("[Expert Bootstrap] Complete! Policy successfully bootstrapped with spatial & combat priors.")
+
+
 def train_ppo_compound(
-    num_updates: int = 60,
+    num_updates: int = 30,
     steps_per_update: int = 2048,
     minibatch_size: int = 256,
     ppo_epochs: int = 4,
@@ -545,9 +711,9 @@ def train_ppo_compound(
     # 1. Start Live Telemetry Visualizer Server
     start_visualizer_server(port=8088)
 
-    # 2. Build Model & Warm Start from Imitation Weights
+    # 2. Build Model & Warm Start with Spatial Prior
     model = CompoundActorCritic()
-    load_pretrained_imitation_weights(model, TS_WEIGHTS_PATH)
+    pretrain_expert_demonstrations(model, num_samples=3000, epochs=20)
     optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-5)
 
     env = Bludrut1v1Env(max_steps=600, seed=42)
@@ -720,6 +886,9 @@ def train_ppo_compound(
                 torch.save(model.state_dict(), CHECKPOINT_PATH)
                 export_compound_weights_to_ts(model, metrics, TS_WEIGHTS_PATH)
 
+    if CHECKPOINT_PATH.exists():
+        model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location="cpu"))
+    export_compound_weights_to_ts(model, metrics, TS_WEIGHTS_PATH)
     print("\n======================================================================")
     print(f"[Training Finished] Best PPO Continuous WinRate: {best_win_rate*100:.1f}%")
     print("Visualizer server remains active on http://localhost:8088.")

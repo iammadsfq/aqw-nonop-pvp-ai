@@ -149,15 +149,21 @@ export function applyRuleShield(
         let safeY = sanitizedMovement.targetY;
 
         // Stage bounds for in-room combat & kiting:
-        // Clamps to walkable area (X: 80..860, Y: 290..435) to permanently prevent roofing (Y < 270)
-        // while allowing full 2D movement across platforms and floor.
-        safeX = Math.min(860, Math.max(80, safeX));
-        safeY = Math.min(435, Math.max(290, safeY));
+        // Clamps to walkable area (X: 60..900, Y: 250..480)
+        // matching the 2D stage canvas platforms, doors, and floor.
+        safeX = Math.min(900, Math.max(60, safeX));
+        safeY = Math.min(480, Math.max(250, safeY));
 
         sanitizedMovement.targetX = safeX;
         sanitizedMovement.targetY = safeY;
 
-        // Trajectory collision check when not intentionally taking a door
+        // Trajectory collision check when not intentionally taking a door:
+        // Clamping before doors is ONLY applied when actively fighting an opponent in the room
+        // to prevent accidental arena exit during combat.
+        // When roaming (!oppInCell), allow the agent to pass through doors freely!
+        const oppInCell = obs.opponents.some(
+            (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
+        );
         const collision = checkTrajectoryDoorCollision(
             obs.currentCell,
             obs.selfX,
@@ -166,10 +172,20 @@ export function applyRuleShield(
             safeY,
         );
         if (collision) {
-            const safeT = Math.max(0, collision.hitT - 0.15);
-            sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
-            sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
-            sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
+            if (oppInCell && !obs.wave.canReturnToSafezone) {
+                // In combat: clamp trajectory to stay inside the combat screen
+                const safeT = Math.max(0, collision.hitT - 0.15);
+                sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
+                sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
+                sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
+            } else {
+                // Out of combat / roaming: snap cleanly to the door trigger aim coordinates!
+                sanitizedMovement.targetX = collision.door.aimX;
+                sanitizedMovement.targetY = collision.door.aimY;
+                sanitizedMovement.targetCell = collision.door.targetCell;
+                sanitizedMovement.targetPad = collision.door.targetPad;
+                sanitizedReason += ` [RuleShield: entering door ${collision.door.targetAlias}]`;
+            }
         }
     }
 

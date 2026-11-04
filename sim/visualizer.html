@@ -76,7 +76,7 @@
     <!-- Main Arena Visualizer Section -->
     <main class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
       <!-- Top Arena Status Bar -->
-      <div class="px-5 py-3 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-300">
+      <div class="px-5 py-3 border-b border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-1.5">
             <span class="w-3 h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-500"></span>
@@ -87,8 +87,16 @@
           <div class="flex items-center gap-1.5">
             <span class="w-3 h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500"></span>
             <span class="font-bold text-rose-300">Red Opponent</span>
-            <span class="text-slate-500">(Curriculum Bot)</span>
+            <span class="text-slate-500">(Greedy 3-4-5-2 Bot)</span>
           </div>
+        </div>
+
+        <!-- Live 10-Kill Scoreboard -->
+        <div class="flex items-center gap-3 bg-slate-900 border border-slate-700/80 px-4 py-1.5 rounded-lg font-bold shadow-inner">
+          <span class="text-blue-400 font-mono text-sm">🔵 BLUE: <span id="blueKillsTag">0</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="text-rose-400 font-mono text-sm">🔴 RED: <span id="redKillsTag">0</span></span>
+          <span class="text-amber-400 text-[10px] px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded font-semibold uppercase tracking-wider">Target: 10 Kills</span>
         </div>
 
         <div class="flex items-center gap-2">
@@ -328,7 +336,8 @@
       frameScrubber.value = 0;
       loadingOverlay.classList.add('hidden');
       const wrStr = (match.win_rate !== undefined) ? ` [${(match.win_rate * 100).toFixed(0)}% WR]` : '';
-      logMatchTag.textContent = `Update #${match.update}${wrStr} (${match.winner.toUpperCase()} won in ${(match.frames.length * 0.1).toFixed(1)}s)`;
+      const scoreStr = (match.blue_kills !== undefined && match.red_kills !== undefined) ? ` [${match.blue_kills} - ${match.red_kills}]` : '';
+      logMatchTag.textContent = `Update #${match.update}${wrStr} (${match.winner.toUpperCase()} won${scoreStr} in ${(match.frames.length * 0.1).toFixed(1)}s)`;
 
       // Populate combat logs
       combatLogList.innerHTML = '';
@@ -337,10 +346,11 @@
           const item = document.createElement('div');
           item.className = 'text-xs border-l-2 pl-2 py-0.5 border-slate-700 hover:bg-slate-800/40 transition';
           let color = 'text-slate-300';
-          if (f.log.includes('Stun') || f.log.includes('Imbalancing')) color = 'text-amber-400 border-amber-500 font-bold';
+          if (f.log.includes('ELIMINATED') || f.log.includes('KILL')) color = 'text-emerald-400 border-emerald-500 font-bold text-sm bg-emerald-950/20';
+          else if (f.log.includes('Stun') || f.log.includes('Imbalancing')) color = 'text-amber-400 border-amber-500 font-bold';
           else if (f.log.includes('On Guard') || f.log.includes('Shield')) color = 'text-blue-400 border-blue-500 font-bold';
           else if (f.log.includes('CRIT') || f.log.includes('damage')) color = 'text-rose-400 border-rose-500';
-          else if (f.log.includes('won') || f.log.includes('Eliminated')) color = 'text-emerald-400 border-emerald-500 font-bold text-sm';
+          else if (f.log.includes('won')) color = 'text-emerald-400 border-emerald-500 font-bold text-sm';
 
           item.className += ' ' + color;
           item.innerHTML = `<span class="text-slate-500">[${f.t.toFixed(1)}s]</span> ${f.log}`;
@@ -377,15 +387,17 @@
       ctx.fillStyle = '#090d16';
       ctx.fillRect(0, 0, 960, 520);
 
-      // Draw Bludrut Arena Floor & Grid Pattern
-      drawArenaFloor();
+      const frameIdx = Math.floor(currentFrameIdx);
+      const frame = (!currentMatch || !currentMatch.frames || currentMatch.frames.length === 0)
+        ? null
+        : (currentMatch.frames[frameIdx] || currentMatch.frames[currentMatch.frames.length - 1]);
 
-      if (!currentMatch || !currentMatch.frames || currentMatch.frames.length === 0) {
+      // Draw Bludrut Arena Floor & Dynamic Doors for current screen
+      drawArenaFloor(frame);
+
+      if (!frame) {
         return;
       }
-
-      const frameIdx = Math.floor(currentFrameIdx);
-      const frame = currentMatch.frames[frameIdx] || currentMatch.frames[currentMatch.frames.length - 1];
 
       // Update time labels
       currentTimeLabel.textContent = `${frame.t.toFixed(1)}s`;
@@ -396,6 +408,16 @@
       const blueRoom = frame.room || "Crosslower";
       const redRoom = frame.enemy_room || "Crosslower";
       const sameRoom = blueRoom === redRoom;
+
+      // Update 10-Kill Live Scoreboard
+      if (frame.blue_kills !== undefined) {
+        const bTag = document.getElementById('blueKillsTag');
+        if (bTag) bTag.textContent = frame.blue_kills;
+      }
+      if (frame.red_kills !== undefined) {
+        const rTag = document.getElementById('redKillsTag');
+        if (rTag) rTag.textContent = frame.red_kills;
+      }
 
       // Draw Room Title & Mini-Map Header
       drawRoomHeader(frame);
@@ -446,76 +468,261 @@
 
       // Draw Blue Agent HUD Cooldowns at Bottom
       drawCooldownHUD(blue);
+
+      // Draw Match Conclusion Banner on final frame
+      if (frameIdx >= currentMatch.frames.length - 1) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillRect(180, 195, 600, 85);
+        const blueWon = (currentMatch.winner === 'Blue Agent') || ((frame.blue_kills || 0) > (frame.red_kills || 0));
+        ctx.strokeStyle = blueWon ? '#10b981' : '#ef4444';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(180, 195, 600, 85);
+
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        if (blueWon) {
+          ctx.fillStyle = '#34d399';
+          ctx.fillText(`🏆 VICTORY: BLUE AGENT WON MATCH!`, 480, 230);
+        } else {
+          ctx.fillStyle = '#f87171';
+          ctx.fillText(`💀 DEFEAT: RED OPPONENT WON MATCH!`, 480, 230);
+        }
+        ctx.font = 'bold 15px monospace';
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillText(`Final 10-Kill Score: Blue ${frame.blue_kills || 0} - ${frame.red_kills || 0} Red`, 480, 260);
+        ctx.restore();
+      }
     }
+
+    const BLUDRUT_16_MAP = {
+      "Enter0": { alias: "Blue SZ", role: "safezone", side: "blue", npc: null, doors: [{ target: "Morale0C", alias: "Blue B3", side: "right" }] },
+      "Morale0C": { alias: "Blue B3", role: "brawler", side: "blue", npc: { name: "(A) Brawler", maxHp: 10000 }, doors: [
+        { target: "Enter0", alias: "Blue SZ", side: "left" },
+        { target: "Morale0B", alias: "Blue B2", side: "right" },
+        { target: "Captain0", alias: "Blue Capt", side: "top" },
+      ]},
+      "Morale0B": { alias: "Blue B2", role: "brawler", side: "blue", npc: { name: "(A) Brawler", maxHp: 10000 }, doors: [
+        { target: "Morale0C", alias: "Blue B3", side: "left" },
+        { target: "Morale0A", alias: "Blue B1", side: "right" },
+      ]},
+      "Morale0A": { alias: "Blue B1", role: "brawler", side: "blue", npc: { name: "(A) Brawler", maxHp: 10000 }, doors: [
+        { target: "Morale0B", alias: "Blue B2", side: "left" },
+        { target: "Crosslower", alias: "Mid", side: "right" },
+      ]},
+      "Captain0": { alias: "Blue Capt", role: "captain", side: "blue", npc: { name: "Team A Captain", maxHp: 15000 }, doors: [
+        { target: "Morale0C", alias: "Blue B3", side: "bottom" },
+      ]},
+      "Resource0B": { alias: "Blue R2", role: "restorer", side: "blue", npc: { name: "(A) Restorer", maxHp: 5000 }, doors: [
+        { target: "Resource0A", alias: "Blue R1", side: "right" },
+      ]},
+      "Resource0A": { alias: "Blue R1", role: "restorer", side: "blue", npc: { name: "(A) Restorer", maxHp: 5000 }, doors: [
+        { target: "Resource0B", alias: "Blue R2", side: "left" },
+        { target: "Crossupper", alias: "Top", side: "right" },
+      ]},
+      "Crosslower": { alias: "Mid", role: "mid", side: "neutral", npc: null, doors: [
+        { target: "Morale0A", alias: "Blue B1", side: "left" },
+        { target: "Morale1A", alias: "Red B1", side: "right" },
+        { target: "Crossupper", alias: "Top", side: "top" },
+      ]},
+      "Crossupper": { alias: "Top", role: "top", side: "neutral", npc: null, doors: [
+        { target: "Resource0A", alias: "Blue R1", side: "left" },
+        { target: "Resource1A", alias: "Red R1", side: "right" },
+        { target: "Crosslower", alias: "Mid", side: "bottom" },
+      ]},
+      "Resource1A": { alias: "Red R1", role: "restorer", side: "red", npc: { name: "(B) Restorer", maxHp: 5000 }, doors: [
+        { target: "Crossupper", alias: "Top", side: "left" },
+        { target: "Resource1B", alias: "Red R2", side: "right" },
+      ]},
+      "Resource1B": { alias: "Red R2", role: "restorer", side: "red", npc: { name: "(B) Restorer", maxHp: 5000 }, doors: [
+        { target: "Resource1A", alias: "Red R1", side: "left" },
+      ]},
+      "Captain1": { alias: "Red Capt", role: "captain", side: "red", npc: { name: "Team B Captain", maxHp: 15000 }, doors: [
+        { target: "Morale1C", alias: "Red B3", side: "bottom" },
+      ]},
+      "Morale1A": { alias: "Red B1", role: "brawler", side: "red", npc: { name: "(B) Brawler", maxHp: 10000 }, doors: [
+        { target: "Crosslower", alias: "Mid", side: "left" },
+        { target: "Morale1B", alias: "Red B2", side: "right" },
+      ]},
+      "Morale1B": { alias: "Red B2", role: "brawler", side: "red", npc: { name: "(B) Brawler", maxHp: 10000 }, doors: [
+        { target: "Morale1A", alias: "Red B1", side: "left" },
+        { target: "Morale1C", alias: "Red B3", side: "right" },
+      ]},
+      "Morale1C": { alias: "Red B3", role: "brawler", side: "red", npc: { name: "(B) Brawler", maxHp: 10000 }, doors: [
+        { target: "Morale1B", alias: "Red B2", side: "left" },
+        { target: "Captain1", alias: "Red Capt", side: "top" },
+        { target: "Enter1", alias: "Red SZ", side: "right" },
+      ]},
+      "Enter1": { alias: "Red SZ", role: "safezone", side: "red", npc: null, doors: [
+        { target: "Morale1C", alias: "Red B3", side: "left" },
+      ]},
+    };
 
     function drawRoomHeader(frame) {
       const blueRoom = frame.room || "Crosslower";
       const blueAlias = frame.room_alias || blueRoom;
       const redRoom = frame.enemy_room || "Crosslower";
 
-      // Room Title Badge
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.fillRect(330, 8, 300, 26);
+      // Tournament Rules & Mid Timer Badge (Top-Left)
+      const stallSec = frame.stalling_sec || 0;
+      let badgeBg = 'rgba(15, 23, 42, 0.9)';
+      let badgeBorder = '#334155';
+      let badgeText = '#94a3b8';
+      let badgeMsg = `⏱️ Out of Combat: ${stallSec.toFixed(1)}s`;
+
+      if (blueRoom === "Crosslower") {
+        badgeBg = 'rgba(6, 78, 59, 0.85)';
+        badgeBorder = '#10b981';
+        badgeText = '#34d399';
+        badgeMsg = '⚔️ CONTESTING MID (Objective Active)';
+      } else if (stallSec > 60.0) {
+        badgeBg = 'rgba(136, 19, 55, 0.95)';
+        badgeBorder = '#f43f5e';
+        badgeText = '#fda4af';
+        badgeMsg = `🚨 1-MIN RULE VIOLATED (${stallSec.toFixed(1)}s)`;
+      } else if (stallSec > 20.0) {
+        badgeBg = 'rgba(120, 53, 15, 0.9)';
+        badgeBorder = '#f59e0b';
+        badgeText = '#fcd34d';
+        badgeMsg = `⚠️ Mid Timer: ${stallSec.toFixed(1)}s / 60s`;
+      }
+
+      ctx.fillStyle = badgeBg;
+      ctx.fillRect(12, 8, 225, 26);
+      ctx.strokeStyle = badgeBorder;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(12, 8, 225, 26);
+      ctx.fillStyle = badgeText;
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(badgeMsg, 124, 25);
+
+      // Room Title Badge (Centered)
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillRect(250, 8, 300, 26);
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1;
-      ctx.strokeRect(330, 8, 300, 26);
+      ctx.strokeRect(250, 8, 300, 26);
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(`CURRENT ROOM: ${blueAlias.toUpperCase()}`, 480, 25);
+      ctx.fillText(`CURRENT ROOM: ${blueAlias.toUpperCase()}`, 400, 25);
 
-      // Mini-Map Corridor Chain (9 screens across main corridor)
-      const chain = [
-        { c: "Enter0", label: "SZ0" },
-        { c: "Morale0C", label: "B3" },
-        { c: "Morale0B", label: "B2" },
-        { c: "Morale0A", label: "B1" },
-        { c: "Crosslower", label: "MID" },
-        { c: "Morale1A", label: "R1" },
-        { c: "Morale1B", label: "R2" },
-        { c: "Morale1C", label: "R3" },
-        { c: "Enter1", label: "SZ1" },
+      // --- Complete 2D 16-Screen Radar Mini-Map (Top-Right) ---
+      const mmX = 570;
+      const mmY = 6;
+      const mmW = 380;
+      const mmH = 68;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillRect(mmX, mmY, mmW, mmH);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mmX, mmY, mmW, mmH);
+
+      // Mini-Map Title
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('BLUDRUTBRAWL 16-SCREEN MAP', mmX + 8, mmY + 11);
+
+      // 16 Screen Topology Layout
+      const colW = 35;
+      const nodeH = 13;
+      const gapX = 5;
+      const originX = mmX + 10;
+      const rowY = [mmY + 16, mmY + 33, mmY + 50];
+
+      const nodes = [
+        // Row 0: Upper Bridge (R2 - R1 - TOP - R1 - R2)
+        { c: "Resource0B", label: "R2", col: 2, row: 0 },
+        { c: "Resource0A", label: "R1", col: 3, row: 0 },
+        { c: "Crossupper", label: "TOP", col: 4, row: 0 },
+        { c: "Resource1A", label: "R1", col: 5, row: 0 },
+        { c: "Resource1B", label: "R2", col: 6, row: 0 },
+        // Row 1: Main Corridor (SZ0 - B3 - B2 - B1 - MID - B1 - B2 - B3 - SZ1)
+        { c: "Enter0", label: "SZ", col: 0, row: 1 },
+        { c: "Morale0C", label: "B3", col: 1, row: 1 },
+        { c: "Morale0B", label: "B2", col: 2, row: 1 },
+        { c: "Morale0A", label: "B1", col: 3, row: 1 },
+        { c: "Crosslower", label: "MID", col: 4, row: 1 },
+        { c: "Morale1A", label: "B1", col: 5, row: 1 },
+        { c: "Morale1B", label: "B2", col: 6, row: 1 },
+        { c: "Morale1C", label: "B3", col: 7, row: 1 },
+        { c: "Enter1", label: "SZ", col: 8, row: 1 },
+        // Row 2: Captain Rooms (under B3 only — NO backdoor to R2!)
+        { c: "Captain0", label: "CAPT", col: 1, row: 2 },
+        { c: "Captain1", label: "CAPT", col: 7, row: 2 },
       ];
 
-      const startX = 260;
-      const startY = 485;
-      const nodeW = 44;
-      const gap = 6;
+      // Draw Connections between screens
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      // Vertical line: TOP <-> MID
+      const midTopX = originX + 4 * (colW + gapX) + colW / 2;
+      ctx.beginPath();
+      ctx.moveTo(midTopX, rowY[0] + nodeH);
+      ctx.lineTo(midTopX, rowY[1]);
+      ctx.stroke();
 
-      chain.forEach((node, i) => {
-        const nx = startX + i * (nodeW + gap);
-        const isBlueHere = blueRoom === node.c;
-        const isRedHere = redRoom === node.c;
+      // Vertical line: Blue B3 <-> Blue Capt
+      const b3CaptX = originX + 1 * (colW + gapX) + colW / 2;
+      ctx.beginPath();
+      ctx.moveTo(b3CaptX, rowY[1] + nodeH);
+      ctx.lineTo(b3CaptX, rowY[2]);
+      ctx.stroke();
 
-        ctx.fillStyle = isBlueHere ? 'rgba(59, 130, 246, 0.4)' : isRedHere ? 'rgba(239, 68, 68, 0.4)' : 'rgba(30, 41, 59, 0.6)';
-        ctx.fillRect(nx, startY, nodeW, 20);
-        ctx.strokeStyle = isBlueHere ? '#3b82f6' : isRedHere ? '#ef4444' : '#334155';
-        ctx.lineWidth = (isBlueHere || isRedHere) ? 2 : 1;
-        ctx.strokeRect(nx, startY, nodeW, 20);
+      // Vertical line: Red B3 <-> Red Capt
+      const r3CaptX = originX + 7 * (colW + gapX) + colW / 2;
+      ctx.beginPath();
+      ctx.moveTo(r3CaptX, rowY[1] + nodeH);
+      ctx.lineTo(r3CaptX, rowY[2]);
+      ctx.stroke();
 
-        ctx.fillStyle = isBlueHere ? '#93c5fd' : isRedHere ? '#fca5a5' : '#64748b';
-        ctx.font = 'bold 9px sans-serif';
+      // Draw Nodes
+      nodes.forEach(n => {
+        const nx = originX + n.col * (colW + gapX);
+        const ny = rowY[n.row];
+        const isBlueHere = blueRoom === n.c;
+        const isRedHere = redRoom === n.c;
+
+        ctx.fillStyle = (isBlueHere && isRedHere) ? 'rgba(245, 158, 11, 0.45)' : isBlueHere ? 'rgba(59, 130, 246, 0.45)' : isRedHere ? 'rgba(239, 68, 68, 0.45)' : 'rgba(30, 41, 59, 0.7)';
+        ctx.fillRect(nx, ny, colW, nodeH);
+        ctx.strokeStyle = (isBlueHere && isRedHere) ? '#f59e0b' : isBlueHere ? '#3b82f6' : isRedHere ? '#ef4444' : '#475569';
+        ctx.lineWidth = (isBlueHere || isRedHere) ? 1.5 : 1;
+        ctx.strokeRect(nx, ny, colW, nodeH);
+
+        ctx.fillStyle = (isBlueHere && isRedHere) ? '#fbbf24' : isBlueHere ? '#93c5fd' : isRedHere ? '#fca5a5' : '#94a3b8';
+        ctx.font = 'bold 8px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(node.label, nx + nodeW / 2, startY + 14);
+        ctx.fillText(n.label, nx + colW / 2, ny + 9);
 
         // Indicator dots
-        if (isBlueHere) {
+        if (isBlueHere && isRedHere) {
           ctx.beginPath();
-          ctx.arc(nx + 8, startY + 4, 3, 0, Math.PI * 2);
+          ctx.arc(nx + 4, ny + 4, 2.5, 0, Math.PI * 2);
           ctx.fillStyle = '#38bdf8';
           ctx.fill();
-        }
-        if (isRedHere) {
           ctx.beginPath();
-          ctx.arc(nx + nodeW - 8, startY + 4, 3, 0, Math.PI * 2);
+          ctx.arc(nx + colW - 4, ny + 4, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#f87171';
+          ctx.fill();
+        } else if (isBlueHere) {
+          ctx.beginPath();
+          ctx.arc(nx + 4, ny + 4, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fill();
+        } else if (isRedHere) {
+          ctx.beginPath();
+          ctx.arc(nx + colW - 4, ny + 4, 2.5, 0, Math.PI * 2);
           ctx.fillStyle = '#f87171';
           ctx.fill();
         }
       });
     }
 
-    function drawArenaFloor() {
+    function drawArenaFloor(frame) {
       // Subtle stone tiles
       ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 1;
@@ -532,23 +739,87 @@
         ctx.stroke();
       }
 
-      // Safezone doors (Left: Enter0, Right: Enter1)
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
-      ctx.fillRect(0, 180, 50, 160);
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
-      ctx.strokeRect(0, 180, 50, 160);
-      ctx.fillStyle = '#60a5fa';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('◄ BLUE DOOR', 8, 265);
+      const roomCell = (frame && frame.room) ? frame.room : "Crosslower";
+      const roomSpec = BLUDRUT_16_MAP[roomCell] || BLUDRUT_16_MAP["Crosslower"];
 
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
-      ctx.fillRect(910, 180, 50, 160);
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
-      ctx.strokeRect(910, 180, 50, 160);
-      ctx.fillStyle = '#f87171';
-      ctx.textAlign = 'right';
-      ctx.fillText('RED DOOR ►', 952, 265);
+      // Draw Dynamic Doors based on this specific room's doors in BludrutBrawl
+      if (roomSpec && roomSpec.doors) {
+        roomSpec.doors.forEach(d => {
+          if (d.side === 'left') {
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
+            ctx.fillRect(0, 180, 50, 160);
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+            ctx.strokeRect(0, 180, 50, 160);
+            ctx.fillStyle = '#60a5fa';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`◄ ${d.alias}`, 6, 265);
+          } else if (d.side === 'right') {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+            ctx.fillRect(910, 180, 50, 160);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            ctx.strokeRect(910, 180, 50, 160);
+            ctx.fillStyle = '#f87171';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${d.alias} ►`, 954, 265);
+          } else if (d.side === 'top') {
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+            ctx.fillRect(390, 220, 180, 38);
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+            ctx.strokeRect(390, 220, 180, 38);
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`▲ ${d.alias} (LADDER/ARCH)`, 480, 244);
+          } else if (d.side === 'bottom') {
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+            ctx.fillRect(350, 475, 260, 35);
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
+            ctx.strokeRect(350, 475, 260, 35);
+            ctx.fillStyle = '#34d399';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`▼ ${d.alias} (DROP/EXIT)`, 480, 498);
+          }
+        });
+      }
+
+      // Draw Room NPC if present (Captain, Brawler, Restorer)
+      if (roomSpec && roomSpec.npc) {
+        const isCaptain = roomSpec.role === 'captain';
+        const isRestorer = roomSpec.role === 'restorer';
+        const npcX = 480;
+        const npcY = isCaptain ? 310 : 330;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+        ctx.beginPath();
+        ctx.arc(npcX, npcY, isCaptain ? 22 : 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = isCaptain ? '#f59e0b' : isRestorer ? '#10b981' : (roomSpec.side === 'blue' ? '#3b82f6' : '#ef4444');
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = isCaptain ? '16px sans-serif' : '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isCaptain ? '👑' : isRestorer ? '🛡️' : '⚔️', npcX, npcY);
+
+        // Name tag
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillStyle = isCaptain ? '#fbbf24' : isRestorer ? '#34d399' : '#cbd5e1';
+        ctx.fillText(roomSpec.npc.name, npcX, npcY - (isCaptain ? 30 : 25));
+
+        // HP bar
+        const barW = isCaptain ? 80 : 60;
+        const barH = 5;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(npcX - barW / 2, npcY + (isCaptain ? 26 : 22), barW, barH);
+        ctx.fillStyle = isCaptain ? '#f59e0b' : isRestorer ? '#10b981' : '#ef4444';
+        ctx.fillRect(npcX - barW / 2, npcY + (isCaptain ? 26 : 22), barW, barH);
+        ctx.restore();
+      }
     }
 
     function drawTargetReticle(selfX, selfY, targetX, targetY, isSprint) {
@@ -587,6 +858,27 @@
       const isBlue = colorTheme === 'blue';
       const mainColor = isBlue ? '#3b82f6' : '#ef4444';
       const glowColor = isBlue ? '#60a5fa' : '#f87171';
+
+      // 0. Dead / Eliminated State
+      if (f.hp <= 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 16, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(51, 65, 85, 0.6)';
+        ctx.fill();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('💀 K.O.', f.x, f.y);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+        return;
+      }
 
       // 1. On Guard Shield Glow Aura
       if (f.on_guard && f.on_guard > 0) {

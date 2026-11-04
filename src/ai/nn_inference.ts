@@ -13,6 +13,7 @@
 
 import {
     BLUDRUT_16_SCREENS,
+    checkTrajectoryDoorCollision,
     findNextDoorTowardCell,
     getDoorAimCoordinates,
 } from "../config/constants";
@@ -35,12 +36,15 @@ const MELEE_RANGE = 301.0;
  * observation vector expected by the neural network (`sim/bludrut_env.py`).
  */
 export function buildObservationVector26(obs: CombatObservation): number[] {
+    const oppInCell = obs.opponents.find(
+        (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
+    );
     const opp =
-        obs.opponents.find((p) => p.cell === obs.currentCell && p.alive) ??
+        oppInCell ??
         obs.opponents.find((p) => p.alive) ??
         obs.opponents[0];
 
-    const sameCell = opp && opp.cell === obs.currentCell && opp.alive ? 1.0 : 0.0;
+    const sameCell = opp && opp.cell.toLowerCase() === obs.currentCell.toLowerCase() && opp.alive ? 1.0 : 0.0;
     const dist =
         sameCell && opp
             ? Math.hypot(obs.selfX - opp.x, obs.selfY - opp.y)
@@ -53,6 +57,31 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
             (s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase(),
         ),
     );
+
+    const oppScreenIdx = opp
+        ? Math.max(0, BLUDRUT_16_SCREENS.findIndex((s) => s.cell.toLowerCase() === opp.cell.toLowerCase()))
+        : 7; // default mid (7)
+
+    const anyOpp = obs.opponents.find(
+        (p) =>
+            p.alive &&
+            p.cell.toLowerCase() !== "enter0" &&
+            p.cell.toLowerCase() !== "enter1" &&
+            p.cell.toLowerCase() !== "wait",
+    );
+    const targetNavCell = anyOpp ? anyOpp.cell : "Crosslower";
+    const nextDoor = !sameCell ? findNextDoorTowardCell(obs.currentCell, targetNavCell) : null;
+
+    let targetRelX = 0.0;
+    let targetRelY = 0.0;
+    if (sameCell && opp) {
+        targetRelX = (opp.x - obs.selfX) / 960.0;
+        targetRelY = (opp.y - obs.selfY) / 550.0;
+    } else if (nextDoor) {
+        const aim = getDoorAimCoordinates(nextDoor, obs.selfX, obs.selfY);
+        targetRelX = (aim.x - obs.selfX) / 960.0;
+        targetRelY = (aim.y - obs.selfY) / 550.0;
+    }
 
     const safeNpc = findSafeManaTapNpc(obs);
 
@@ -71,10 +100,10 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
         obs.skillsReady[1] ? 1.0 : 0.0,                      // 11: skill 2 ready
         obs.skillsReady[2] ? 1.0 : 0.0,                      // 12: skill 3 ready
         obs.skillsReady[3] ? 1.0 : 0.0,                      // 13: skill 4 ready
-        0.0,                                                 // 14: skill 1 CD
-        0.0,                                                 // 15: skill 2 CD
-        0.0,                                                 // 16: skill 3 CD
-        0.0,                                                 // 17: skill 4 CD
+        oppScreenIdx / 15.0,                                 // 14: opp screen index
+        Math.min(1.0, Math.max(-1.0, targetRelX)),           // 15: primary target relative X (opp in room, or exit door when roaming)
+        Math.min(1.0, Math.max(-1.0, targetRelY)),           // 16: primary target relative Y (opp in room, or exit door when roaming)
+        0.0,                                                 // 17: mid timer progress ratio
         obs.selfAuras.length > 0 ? 1.0 : 0.0,                // 18: self has buff
         obs.selfStunned ? 1.0 : 0.0,                         // 19: self stunned
         opp && opp.alive ? 1.0 : 0.0,                        // 20: opp alive
@@ -82,7 +111,7 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
         Math.min(1.0, dist / 1000.0),                        // 22: distance to opp
         inMelee,                                             // 23: in melee range
         opp ? opp.hp / Math.max(1, opp.maxHp) : 0.0,         // 24: opp HP ratio
-        safeNpc ? safeNpc.hp / Math.max(1, safeNpc.maxHp) : 0.0, // 25: safe NPC HP ratio
+        safeNpc ? 1.0 : 0.0,                                 // 25: safe NPC available
     ];
 
     return vec;
@@ -128,63 +157,12 @@ export function inferBattleWarriorDecision(
     obs: CombatObservation,
     policy: CompoundAtomicPolicySpec = COMPOUND_ATOMIC_POLICY_WEIGHTS,
 ): CombatDecision {
-    // Handling Safezone recovery & exit
-    if (obs.inSafezone) {
-        if (obs.selfHpRatio >= 0.95 && obs.selfMpRatio >= 0.85) {
-            const exitDoor = findNextDoorTowardCell(obs.currentCell, "Crosslower");
-            if (exitDoor) {
-                const aim = getDoorAimCoordinates(exitDoor, obs.selfX, obs.selfY);
-                return {
-                    combatAction: "NONE",
-                    movement: {
-                        type: obs.canSprint ? "SPRINT" : "WALK",
-                        targetX: aim.x,
-                        targetY: aim.y,
-                        targetCell: exitDoor.targetCell,
-                        targetPad: exitDoor.targetPad,
-                    },
-                    reason: `[AtomicPolicy] Exiting Safezone (${obs.currentCell}) -> ${exitDoor.targetAlias}.`,
-                };
-            }
-        }
-        return {
-            combatAction: "NONE",
-            movement: { type: "STAND", targetX: Math.round(obs.selfX), targetY: Math.round(obs.selfY) },
-            reason: "[AtomicPolicy] Resting in Safezone for full recovery.",
-        };
-    }
-
-    const oppInCell = obs.opponents.find((p) => p.cell === obs.currentCell && p.alive);
-    const anyOpp = obs.opponents.find(
-        (p) => p.alive && p.cell !== "Enter0" && p.cell !== "Enter1" && p.cell !== "Wait",
+    const oppInCell = obs.opponents.find(
+        (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
     );
-
-    // If no opponent in current room, navigate across screens toward goal
-    if (!oppInCell) {
-        const goalCell = anyOpp ? anyOpp.cell : "Crosslower";
-        if (obs.currentCell.toLowerCase() !== goalCell.toLowerCase()) {
-            const nextDoor = findNextDoorTowardCell(obs.currentCell, goalCell);
-            if (nextDoor) {
-                const aim = getDoorAimCoordinates(nextDoor, obs.selfX, obs.selfY);
-                return {
-                    combatAction: "NONE",
-                    movement: {
-                        type: obs.canSprint ? "SPRINT" : "WALK",
-                        targetX: aim.x,
-                        targetY: aim.y,
-                        targetCell: nextDoor.targetCell,
-                        targetPad: nextDoor.targetPad,
-                    },
-                    reason: `[AtomicPolicy] Roaming ${obs.currentCell} -> ${nextDoor.targetAlias} toward ${goalCell}.`,
-                };
-            }
-        }
-        return {
-            combatAction: "NONE",
-            movement: { type: "STAND", targetX: Math.round(obs.selfX), targetY: Math.round(obs.selfY) },
-            reason: `[AtomicPolicy] Holding position in ${obs.currentCell} waiting for opponent.`,
-        };
-    }
+    const dist = oppInCell ? Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y) : 9999.0;
+    const inMelee = oppInCell ? dist <= MELEE_RANGE : false;
+    const safeNpc = findSafeManaTapNpc(obs);
 
     // Shared Neural Backbone forward pass
     const x = buildObservationVector26(obs);
@@ -194,10 +172,6 @@ export function inferBattleWarriorDecision(
     // Head 1: Combat Action logits
     const rawCombatLogits = denseLinear(h2, policy.wCombat, policy.bCombat);
     const combatLogits = [...rawCombatLogits];
-
-    const dist = Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y);
-    const inMelee = dist <= MELEE_RANGE;
-    const safeNpc = findSafeManaTapNpc(obs);
 
     // Mask physically impossible actions and rule violations only.
     // Pure learned policy: NEVER hardcode tactical combat behaviors or arbitrary logit boosts!
@@ -253,23 +227,62 @@ export function inferBattleWarriorDecision(
     const moveTypeMap: AtomicMovementType[] = ["STAND", "WALK", "SPRINT"];
     const chosenMoveType: AtomicMovementType = moveTypeMap[bestMoveIdx] ?? "STAND";
 
-    // Head 3: Target Coordinates regression
+    // Head 3: 100% Unified Atomic Target Coordinates regression (Sigmoid in [0, 1])
     const coordRaw = denseLinear(h2, policy.wCoord, policy.bCoord);
     const normX = sigmoid(coordRaw[0] ?? 0.0);
     const normY = sigmoid(coordRaw[1] ?? 0.0);
 
-    const targetX = Math.round(normX * 960);
-    const targetY = Math.round(normY * 550);
+    let targetX = Math.round(40.0 + normX * 880.0);
+    let targetY = Math.round(240.0 + normY * 260.0);
+
+    // Movement & Roaming Navigation Resolution
+    let targetCell: string | undefined = undefined;
+    let targetPad: string | undefined = undefined;
+    let finalMoveType: AtomicMovementType = chosenMoveType;
+
+    if (!oppInCell) {
+        // Roaming across screens: Navigate decisively toward opponent / Mid / Safezone
+        const anyOpp = obs.opponents.find(
+            (p) =>
+                p.alive &&
+                p.cell.toLowerCase() !== "enter0" &&
+                p.cell.toLowerCase() !== "enter1" &&
+                p.cell.toLowerCase() !== "wait",
+        );
+        const goalCell = obs.wave.canReturnToSafezone
+            ? (obs.inSafezone ? obs.currentCell : (obs.currentCell.includes("0") ? "Enter0" : "Enter1"))
+            : (anyOpp ? anyOpp.cell : "Crosslower");
+
+        const nextDoor = findNextDoorTowardCell(obs.currentCell, goalCell);
+        if (nextDoor) {
+            targetX = nextDoor.aimX;
+            targetY = nextDoor.aimY;
+            targetCell = nextDoor.targetCell;
+            targetPad = nextDoor.targetPad;
+            finalMoveType = obs.canSprint ? "SPRINT" : "WALK";
+        }
+    } else {
+        // In-room combat: Neural network controls 100% continuous spatial target (targetX, targetY)
+        const hit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
+        if (hit && obs.wave.canReturnToSafezone) {
+            targetCell = hit.door.targetCell;
+            targetPad = hit.door.targetPad;
+        }
+    }
 
     return {
         combatAction: chosenCombatAction,
         movement: {
-            type: chosenMoveType,
+            type: finalMoveType,
             targetX,
             targetY,
+            targetCell,
+            targetPad,
         },
         targetName: oppInCell ? oppInCell.username : undefined,
         npcMapId: undefined,
-        reason: `[AtomicPolicy] Combat: ${chosenCombatAction} | Move: ${chosenMoveType} -> (${targetX}, ${targetY})`,
+        reason: oppInCell
+            ? `[AtomicPolicy] Action: ${chosenCombatAction} | Move: ${finalMoveType} -> (${targetX}, ${targetY})`
+            : `[AtomicPolicy] Roaming ${obs.currentCell} -> ${targetCell ?? "Crosslower"} (Move: ${finalMoveType})`,
     };
 }

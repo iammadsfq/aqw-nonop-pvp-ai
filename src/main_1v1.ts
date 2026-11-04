@@ -11,6 +11,7 @@ import {
     AQW_DEFAULT_WALK_SPEED,
     AQW_SPRINT_STAMINA_COST,
     AQW_SPRINT_WALK_SPEED,
+    BLUDRUT_16_SCREENS,
 } from "./config/constants";
 import { createMatchConfig } from "./config/match_config";
 import { runNonOpPreflightCheck } from "./rules/preflight";
@@ -20,16 +21,31 @@ import type { CombatDecision, CombatObservation, WaveTrackerState } from "./stat
 
 declare const process: { argv?: string[]; env?: Record<string, string> } | undefined;
 
-let lastWalkCell = "";
-let lastWalkX = -1;
-let lastWalkY = -1;
-let lastWalkTime = 0;
+let lastSentWalkCell = "";
+let lastSentWalkX = -1;
+let lastSentWalkY = -1;
+let lastSentWalkSpeed = 0;
+let lastSentWalkTime = 0;
+let lastSprintTime = 0;
+let lastLogTime = 0;
+let lastLoggedReason = "";
+
 let currentCellTracker = "";
 let cellEnteredAt = 0;
+
+// Door sync re-entry state ("turun dikit lalu masuk lagi")
+let activeDoorCell = "";
+let doorArrivedAt = 0;
+let isSteppingDown = false;
+let stepDownUntil = 0;
+let stepDownTargetX = 0;
+let stepDownTargetY = 0;
+let stepDownAttempts = 0;
 
 function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprint: boolean): boolean {
     // If stunned, immediately freeze character movement on client to match server state!
     if (obs.selfStunned) {
+        lastSprintTime = 0;
         try {
             bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
         } catch (_) {}
@@ -38,29 +54,54 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
 
     const now = Date.now();
     const isMoving = Boolean(bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove"));
-    const sameTarget =
-        obs.currentCell === lastWalkCell && Math.hypot(x - lastWalkX, y - lastWalkY) <= 25;
-
-    // Throttle walkTo calls so Flash's mvTimer and onEnterFrameWalk are not reset every 100ms!
-    if (sameTarget && isMoving && now - lastWalkTime < 300) {
-        return false;
-    }
-
-    lastWalkCell = obs.currentCell;
-    lastWalkX = x;
-    lastWalkY = y;
-    lastWalkTime = now;
 
     // Rely on Flash/Server native intSP without artificially overriding it
     const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
     const canReallySprint = isSprint && currentSp >= AQW_SPRINT_STAMINA_COST;
+    const targetSpeed = canReallySprint ? AQW_SPRINT_WALK_SPEED : AQW_DEFAULT_WALK_SPEED;
+
+    // 1. Sprint Commitment Lock (250ms):
+    // If an active sprint was launched less than 250ms ago and avatar is moving,
+    // do NOT interrupt it with repeated walkTo calls, allowing the server to validate the dash!
+    if (isMoving && now - lastSprintTime < 250) {
+        return false;
+    }
+
+    // 2. Deadzone & Anti-Flooding Packet Throttler:
+    const targetDist = Math.hypot(x - lastSentWalkX, y - lastSentWalkY);
+    const sameDestination = obs.currentCell === lastSentWalkCell && targetDist < 40;
+    const sameSpeed = targetSpeed === lastSentWalkSpeed;
+
+    if (sameDestination && sameSpeed) {
+        // If avatar is currently walking towards this target, do NOT resend packets.
+        // Flash client is smoothly interpolating along the tween.
+        if (isMoving) {
+            return false;
+        }
+        // If avatar is stationary, wait at least 350ms before retrying to avoid spamming stopped state
+        if (now - lastSentWalkTime < 350) {
+            return false;
+        }
+    }
+
+    // 3. Absolute Rate Limiter: Max 7-8 movement packets per second (~120ms interval)
+    // unless destination changed significantly (> 60px)
+    if (now - lastSentWalkTime < 120 && targetDist < 60) {
+        return false;
+    }
+
+    lastSentWalkCell = obs.currentCell;
+    lastSentWalkX = x;
+    lastSentWalkY = y;
+    lastSentWalkSpeed = targetSpeed;
+    lastSentWalkTime = now;
 
     if (canReallySprint) {
-        bot.flash.set("world.justRan", true);
+        lastSprintTime = now;
+        bot.flash.set("world.justRan", false);
         bot.flash.set("world.rootClass.pDash", true);
         bot.player.walkTo(x, y, AQW_SPRINT_WALK_SPEED);
     } else {
-        bot.flash.set("world.justRan", false);
         bot.flash.set("world.rootClass.pDash", false);
         bot.player.walkTo(x, y, AQW_DEFAULT_WALK_SPEED);
     }
@@ -68,8 +109,21 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
 }
 
 function executeDecision(decision: CombatDecision, obs: CombatObservation, combatCell: string, safezoneCell: string): void {
-    // 1. Target Lock: Lock onto opponent if needed
-    if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+    // 1. Instant Target Lock: Emulates native human mouse-click on avatar sprite in Flash memory
+    // Immediately binds `world.myAvatar.target` in local memory so skills cast on this same frame don't drop!
+    if (
+        decision.targetName &&
+        (!obs.hasTarget || obs.targetIsNpc || obs.targetName?.toLowerCase() !== decision.targetName.toLowerCase())
+    ) {
+        try {
+            const uo = bot.flash.get<any>(`world.uoTree.${decision.targetName.toLowerCase()}`);
+            if (uo) {
+                bot.flash.set("world.myAvatar.target", uo);
+                try {
+                    bot.flash.callGameFunction("world.rootClass.selectTarget", decision.targetName);
+                } catch (_) {}
+            }
+        } catch (_) {}
         bot.combat.attackPlayer(decision.targetName);
     }
 
@@ -100,21 +154,107 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
                     ? "AUTO_ATTACK"
                     : "NONE");
 
-    // 2. Simultaneous Movement Execution:
+    // 2. Simultaneous Movement Execution & Door Re-sync ("turun dikit lalu masuk lagi"):
+    const now = Date.now();
+    const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
+
+    // Find target door: either explicitly commanded in movement.targetCell,
+    // or physically nearby in the current room
+    const targetDoor = currentScreen?.doors.find((d) =>
+        (movement.targetCell && d.targetCell.toLowerCase() === movement.targetCell.toLowerCase()) ||
+        (obs.selfX >= d.xMin - 25 && obs.selfX <= d.xMax + 25 && obs.selfY >= d.yMin - 25 && obs.selfY <= d.yMax + 25) ||
+        Math.hypot(obs.selfX - d.aimX, obs.selfY - d.aimY) < 65,
+    );
+
+    if (targetDoor) {
+        if (targetDoor.targetCell !== activeDoorCell) {
+            activeDoorCell = targetDoor.targetCell;
+            doorArrivedAt = 0;
+            isSteppingDown = false;
+            stepDownAttempts = 0;
+        }
+
+        const distToDoorAim = Math.hypot(obs.selfX - targetDoor.aimX, obs.selfY - targetDoor.aimY);
+        const inDoorBox =
+            obs.selfX >= targetDoor.xMin - 15 &&
+            obs.selfX <= targetDoor.xMax + 15 &&
+            obs.selfY >= targetDoor.yMin - 15 &&
+            obs.selfY <= targetDoor.yMax + 15;
+        const atDoor = inDoorBox || distToDoorAim < 60;
+
+        // Jika sampai di pintu dan tertahan > 800ms tanpa pindah room (desync server)
+        if (atDoor && !isSteppingDown) {
+            if (doorArrivedAt === 0) {
+                doorArrivedAt = now;
+            } else if (now - doorArrivedAt > 800) {
+                if (stepDownAttempts < 2) {
+                    stepDownAttempts++;
+                    isSteppingDown = true;
+                    stepDownUntil = now + 500;
+
+                    const stepX =
+                        targetDoor.aimX > 500
+                            ? Math.max(120, Math.round(obs.selfX - 120))
+                            : Math.min(840, Math.round(obs.selfX + 120));
+
+                    const stepY =
+                        targetDoor.aimY < 380
+                            ? Math.min(430, Math.round(obs.selfY + 70))
+                            : Math.max(280, Math.round(obs.selfY - 70));
+
+                    stepDownTargetX = stepX;
+                    stepDownTargetY = stepY;
+                    bot.log(
+                        `[DoorSync] Stuck di pintu ${targetDoor.targetAlias} (${targetDoor.targetCell}) selama ${now - doorArrivedAt}ms. Turun dikit ke (${stepX}, ${stepY}) lalu masuk lagi... (attempt #${stepDownAttempts})`,
+                    );
+                } else {
+                    bot.log(
+                        `[DoorSync] Flash transition lagging (${now - doorArrivedAt}ms) di ${targetDoor.targetCell}. Pindah room langsung via jump(${targetDoor.targetCell}, ${targetDoor.targetPad})...`,
+                    );
+                    bot.map.jump(targetDoor.targetCell, targetDoor.targetPad);
+                    doorArrivedAt = now;
+                }
+            }
+        }
+
+        if (isSteppingDown) {
+            if (now < stepDownUntil) {
+                movement.targetX = stepDownTargetX;
+                movement.targetY = stepDownTargetY;
+                movement.targetCell = undefined; // Jangan minta pindah room saat sedang turun
+                movement.type = "WALK";
+            } else {
+                // Selesai turun: masuk lagi ke pintu!
+                isSteppingDown = false;
+                doorArrivedAt = now;
+                movement.targetX = targetDoor.aimX;
+                movement.targetY = targetDoor.aimY;
+                movement.targetCell = targetDoor.targetCell;
+                movement.targetPad = targetDoor.targetPad;
+                movement.type = "WALK";
+            }
+        }
+    } else {
+        activeDoorCell = "";
+        doorArrivedAt = 0;
+        isSteppingDown = false;
+        stepDownAttempts = 0;
+    }
+
     // Walks or Sprints to target ground coordinates (X, Y)
     if (movement.type !== "STAND") {
         const isSprint = movement.type === "SPRINT";
         // Room transitions always use standard walk speed for clean server sync
-        const isDoor = Boolean(movement.targetCell);
+        const willTransition = Boolean(movement.targetCell);
         triggerSprintWalk(
             obs,
             movement.targetX,
             movement.targetY,
-            isDoor ? false : isSprint,
+            willTransition ? false : isSprint,
         );
     } else {
-        // If STAND was commanded and avatar is currently walking, stop cleanly
-        if (bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove")) {
+        // If STAND was commanded and avatar is currently walking, stop cleanly (unless sprint-committed)
+        if (now - lastSprintTime >= 250 && bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove")) {
             try {
                 bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
             } catch (_) {}
@@ -145,8 +285,14 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             break;
     }
 
+    // Log throttling: only log when semantic state changes or at most once every 1000ms
     if (combatAction !== "NONE" || movement.type !== "STAND") {
-        bot.log(`[1v1 AI] ${decision.reason}`);
+        const logKey = `${combatAction}|${movement.type}|${movement.targetCell ?? ""}|${decision.targetName ?? ""}`;
+        if (logKey !== lastLoggedReason || now - lastLogTime >= 1000) {
+            lastLoggedReason = logKey;
+            lastLogTime = now;
+            bot.log(`[1v1 AI] ${decision.reason}`);
+        }
     }
 }
 
@@ -264,16 +410,23 @@ export default function main(): void {
         }
 
         if (obs.currentCell !== currentCellTracker) {
+            const screenSpec = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
+            bot.log(`[ScreenTransition] Entered ${obs.currentCell} (${screenSpec?.alias ?? ""}).`);
             // Stop residual walking immediately upon changing rooms so the avatar
             // does NOT overshoot across the new screen to the previous click point!
             try {
                 bot.flash.set("world.myAvatar.pMC.mcChar.onMove", false);
                 bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
             } catch (_) {}
-            bot.player.walkTo(bot.player.x, bot.player.y, AQW_DEFAULT_WALK_SPEED);
-            lastWalkCell = "";
-            lastWalkX = -1;
-            lastWalkY = -1;
+            lastSentWalkCell = "";
+            lastSentWalkX = -1;
+            lastSentWalkY = -1;
+            lastSentWalkSpeed = 0;
+            lastSentWalkTime = 0;
+            activeDoorCell = "";
+            doorArrivedAt = 0;
+            isSteppingDown = false;
+            stepDownAttempts = 0;
             currentCellTracker = obs.currentCell;
             cellEnteredAt = Date.now();
             bot.sleep(150);
@@ -283,7 +436,9 @@ export default function main(): void {
         enforceNpcProtectionGuard(obs);
 
         // Update 1v1 wave & kill tracking
-        const opponentInCell = obs.opponents.find((p) => p.cell === obs.currentCell && p.alive);
+        const opponentInCell = obs.opponents.find(
+            (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
+        );
         if (opponentInCell) {
             engagedOpponentName = opponentInCell.username;
             wave.waveActive = true;
@@ -294,9 +449,9 @@ export default function main(): void {
             if (
                 !trackedOpp ||
                 !trackedOpp.alive ||
-                trackedOpp.cell === "Wait" ||
-                trackedOpp.cell === "Enter0" ||
-                trackedOpp.cell === "Enter1"
+                trackedOpp.cell.toLowerCase() === "wait" ||
+                trackedOpp.cell.toLowerCase() === "enter0" ||
+                trackedOpp.cell.toLowerCase() === "enter1"
             ) {
                 engagedOpponentName = null;
                 wave.opponentKilledInWave = true;
@@ -318,7 +473,7 @@ export default function main(): void {
         const safeDecision = applyRuleShield(rawDecision, obs, config);
         executeDecision(safeDecision, obs, config.combatCell, config.safezoneCell);
 
-        bot.sleep(100);
+        bot.sleep(50); // 20 Hz tick rate (down from 100ms) for snappy, human-grade responsiveness!
     }
 
     bot.log(`[Non-OP PvP AI] Match finished! Final Kills: ${wave.teamKills}/${config.killTarget}.`);

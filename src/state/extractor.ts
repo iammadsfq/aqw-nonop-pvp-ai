@@ -8,18 +8,30 @@ import { bot, PlayerInfo } from "turu";
 import {
     AQW_MAX_STAMINA,
     AQW_SPRINT_STAMINA_COST,
+    BLUDRUT_16_SCREENS,
     BLUDRUT_SAFEZONE_CELLS,
     PROTECTED_NPC_KEYWORDS,
 } from "../config/constants";
 import type { CombatObservation, PlayerSnapshot, WaveTrackerState } from "./types";
 
-function toPlayerSnapshot(info: PlayerInfo): PlayerSnapshot {
+function toPlayerSnapshot(info: PlayerInfo, currentCellCanonical: string, cellPlayersSet: Set<string>): PlayerSnapshot {
     const maxHp = Math.max(1, info.maxHp);
     const maxMp = 100;
     const auras = bot.self.getPlayerAura(info.name) ?? [];
+
+    const canonicalScreen = BLUDRUT_16_SCREENS.find(
+        (s) => s.cell.toLowerCase() === info.cell?.toLowerCase(),
+    );
+    let cell = canonicalScreen ? canonicalScreen.cell : (info.cell ?? "");
+
+    // Ground truth from Flash stage: if player is in cellPlayers, they are in our current cell!
+    if (cellPlayersSet.has(info.name.toLowerCase())) {
+        cell = currentCellCanonical;
+    }
+
     return {
         username: info.name,
-        cell: info.cell,
+        cell,
         pad: info.pad,
         x: info.x,
         y: info.y,
@@ -103,8 +115,15 @@ export function extractObservation(
     const selfMp = bot.player.mana;
     const rawSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP");
     const selfSp = typeof rawSp === "number" && !Number.isNaN(rawSp) ? rawSp : AQW_MAX_STAMINA;
-    const currentCell = bot.player.cell;
+    const canonicalCurrent = BLUDRUT_16_SCREENS.find(
+        (s) => s.cell.toLowerCase() === bot.player.cell?.toLowerCase(),
+    );
+    const currentCell = canonicalCurrent ? canonicalCurrent.cell : bot.player.cell;
     const currentPad = bot.player.pad;
+
+    const cellPlayersSet = new Set(
+        (bot.map.cellPlayers ?? []).map((n) => n.toLowerCase()),
+    );
 
     const allies: PlayerSnapshot[] = [];
     const opponents: PlayerSnapshot[] = [];
@@ -114,7 +133,7 @@ export function extractObservation(
         if (name.toLowerCase() === selfName.toLowerCase()) continue;
         const info = bot.map.getPlayer(name);
         if (!info) continue;
-        const snap = toPlayerSnapshot(info);
+        const snap = toPlayerSnapshot(info, currentCell, cellPlayersSet);
         if (allyNames.has(name.toLowerCase())) {
             allies.push(snap);
         } else {
@@ -123,7 +142,12 @@ export function extractObservation(
     }
 
     const inSafezone = BLUDRUT_SAFEZONE_CELLS.has(currentCell);
-    const oppInCell = opponents.find((p) => p.cell === currentCell && p.alive);
+    const oppInCell = opponents.find(
+        (p) =>
+            (p.cell.toLowerCase() === currentCell.toLowerCase() ||
+                cellPlayersSet.has(p.username.toLowerCase())) &&
+            p.alive,
+    );
 
     const rawTargetType = bot.flash.get<string>("world.myAvatar.target.npcType");
     const rawTargetPlayerName =
