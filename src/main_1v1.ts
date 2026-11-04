@@ -68,80 +68,89 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
 }
 
 function executeDecision(decision: CombatDecision, obs: CombatObservation, combatCell: string, safezoneCell: string): void {
-    let shouldLog = decision.action !== "IDLE";
+    // 1. Target Lock: Lock onto opponent if needed
+    if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
+        bot.combat.attackPlayer(decision.targetName);
+    }
 
-    switch (decision.action) {
-        case "IDLE":
-            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
+    const movement = decision.movement ?? {
+        type:
+            decision.action === "SPRINT_TO_POINT" || decision.action === "SPRINT_TO_DOOR"
+                ? "SPRINT"
+                : decision.action === "WALK_TO_POINT" || decision.action === "WALK_TO_DOOR"
+                  ? "WALK"
+                  : "STAND",
+        targetX: decision.targetX ?? Math.round(obs.selfX),
+        targetY: decision.targetY ?? Math.round(obs.selfY),
+        targetCell: decision.targetCell,
+        targetPad: decision.targetPad,
+    };
+
+    const combatAction =
+        decision.combatAction ??
+        (decision.action === "USE_SKILL_1"
+            ? "USE_SKILL_1"
+            : decision.action === "USE_SKILL_2"
+              ? "USE_SKILL_2"
+              : decision.action === "USE_SKILL_3"
+                ? "USE_SKILL_3"
+                : decision.action === "USE_SKILL_4"
+                  ? "USE_SKILL_4"
+                  : decision.action === "MANA_TAP_NPC"
+                    ? "MANA_TAP_NPC"
+                    : decision.action === "TARGET_OPPONENT"
+                      ? "AUTO_ATTACK"
+                      : "NONE");
+
+    // 2. Simultaneous Movement Execution:
+    // Walks or Sprints to target ground coordinates (X, Y)
+    if (movement.type !== "STAND") {
+        const isSprint = movement.type === "SPRINT";
+        // Room transitions always use standard walk speed for clean server sync
+        const isDoor = Boolean(movement.targetCell);
+        triggerSprintWalk(
+            obs,
+            movement.targetX,
+            movement.targetY,
+            isDoor ? false : isSprint,
+        );
+    }
+
+    // 3. Simultaneous Combat Execution:
+    // Casts skills 1-4, auto-attacks, or mana-taps on the EXACT SAME FRAME without stopping movement!
+    switch (combatAction) {
+        case "NONE":
             break;
-        case "CANCEL_AUTO_ATTACK":
-            bot.combat.cancelAutoAttack();
-            bot.combat.cancelTarget();
-            break;
-        case "REST_OUT_OF_COMBAT":
-            if (!obs.selfInCombat) {
-                bot.player.rest(false);
-            }
-            break;
-        case "TARGET_OPPONENT":
+        case "AUTO_ATTACK":
             if (decision.targetName) {
                 bot.combat.attackPlayer(decision.targetName);
             }
+            break;
+        case "USE_SKILL_1":
+            bot.skills.useSkill(1);
+            break;
+        case "USE_SKILL_2":
+            bot.skills.useSkill(2);
+            break;
+        case "USE_SKILL_3":
+            bot.skills.useSkill(3);
+            break;
+        case "USE_SKILL_4":
+            bot.skills.useSkill(4);
             break;
         case "MANA_TAP_NPC":
             if (decision.npcMapId !== undefined) {
                 bot.combat.attack(decision.npcMapId);
             }
             break;
-        case "USE_SKILL_1":
-            if (decision.targetName) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
-            bot.skills.useSkill(1);
-            break;
-        case "USE_SKILL_2":
-            if (decision.targetName) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
-            bot.skills.useSkill(2);
-            break;
-        case "USE_SKILL_3":
-            if (decision.targetName) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
-            bot.skills.useSkill(3);
-            break;
-        case "USE_SKILL_4":
-            if (decision.targetName) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
-            bot.skills.useSkill(4);
-            break;
-        case "WALK_TO_POINT":
-            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
-            if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                shouldLog = triggerSprintWalk(obs, decision.targetX, decision.targetY, false);
+        case "REST_OUT_OF_COMBAT":
+            if (!obs.selfInCombat) {
+                bot.player.rest(false);
             }
             break;
-        case "SPRINT_TO_POINT":
-            if (decision.targetName && (!obs.hasTarget || obs.targetIsNpc)) {
-                bot.combat.attackPlayer(decision.targetName);
-            }
-            if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                shouldLog = triggerSprintWalk(obs, decision.targetX, decision.targetY, obs.canSprint);
-            }
-            break;
-        case "WALK_TO_DOOR":
-        case "SPRINT_TO_DOOR":
-            if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                // Room traversal ALWAYS uses normal walk speed (8 px/s) to ensure 100% server sync!
-                // Never sprint into doors. Normal walking ensures zero speed mismatch across room boundaries.
-                shouldLog = triggerSprintWalk(obs, decision.targetX, decision.targetY, false);
-            }
+        case "CANCEL_AUTO_ATTACK":
+            bot.combat.cancelAutoAttack();
+            bot.combat.cancelTarget();
             break;
         case "RETREAT_TO_SAFEZONE":
             bot.combat.cancelAutoAttack();
@@ -152,8 +161,9 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             bot.map.jump(combatCell, "Left");
             break;
     }
-    if (shouldLog) {
-        bot.log(`[1v1 AI] ${decision.action} -> ${decision.reason}`);
+
+    if (combatAction !== "NONE" || movement.type !== "STAND") {
+        bot.log(`[1v1 AI] ${decision.reason}`);
     }
 }
 

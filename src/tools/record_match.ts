@@ -22,8 +22,12 @@ export interface ExpertStepRecord {
     obsVector: number[];
     actionIndex: number;
     actionName: string;
+    combatAction: number;
+    moveType: number;
     selfX: number;
     selfY: number;
+    targetX: number;
+    targetY: number;
     targetName?: string;
     isSprint: boolean;
 }
@@ -123,6 +127,26 @@ export default function main(): void {
 
         lastSkillsReady = [...obs.skillsReady];
 
+        // Determine atomic decoupled channels
+        let combatAct = 0;
+        if (actionIdx === 3) combatAct = 2; // S1
+        else if (actionIdx === 4) combatAct = 3; // S2
+        else if (actionIdx === 5) combatAct = 4; // S3
+        else if (actionIdx === 6) combatAct = 5; // S4
+        else if (actionIdx === 10) combatAct = 6; // MANA_TAP
+        else if (obs.selfInCombat) combatAct = 1; // AA
+
+        let moveType = 0;
+        if (justRan || [2, 8, 13].includes(actionIdx)) moveType = 2; // SPRINT
+        else if (isMoving || [1, 7, 9, 11, 12].includes(actionIdx)) moveType = 1; // WALK
+
+        const clickTargetX = Math.round(
+            bot.flash.get<number>("world.myAvatar.pMC.mcChar.targetX") ?? currentX,
+        );
+        const clickTargetY = Math.round(
+            bot.flash.get<number>("world.myAvatar.pMC.mcChar.targetY") ?? currentY,
+        );
+
         // Format and stream record to disk
         const record: ExpertStepRecord = {
             timestamp: Date.now(),
@@ -130,8 +154,12 @@ export default function main(): void {
             obsVector: vec,
             actionIndex: actionIdx,
             actionName,
+            combatAction: combatAct,
+            moveType,
             selfX: currentX,
             selfY: currentY,
+            targetX: clickTargetX,
+            targetY: clickTargetY,
             targetName: obs.targetName ?? undefined,
             isSprint: justRan,
         };

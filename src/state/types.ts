@@ -78,6 +78,31 @@ export interface CombatObservation {
     wave: WaveTrackerState;
 }
 
+export type AtomicMovementType = "STAND" | "WALK" | "SPRINT";
+
+export type AtomicCombatAction =
+    | "NONE"
+    | "AUTO_ATTACK"
+    | "USE_SKILL_1"
+    | "USE_SKILL_2"
+    | "USE_SKILL_3"
+    | "USE_SKILL_4"
+    | "MANA_TAP_NPC"
+    | "REST_OUT_OF_COMBAT"
+    | "CANCEL_AUTO_ATTACK"
+    | "RETREAT_TO_SAFEZONE"
+    | "ADVANCE_TO_COMBAT_CELL";
+
+export interface AtomicMovementDecision {
+    type: AtomicMovementType;
+    /** Target 2D coordinates `(x, y)` in the current screen. */
+    targetX: number;
+    targetY: number;
+    /** If transitioning screens, the destination cell and pad. */
+    targetCell?: string;
+    targetPad?: string;
+}
+
 export type CombatActionType =
     | "IDLE"
     | "CANCEL_AUTO_ATTACK"
@@ -96,7 +121,12 @@ export type CombatActionType =
     | "ADVANCE_TO_COMBAT_CELL";
 
 export interface CombatDecision {
-    action: CombatActionType;
+    /** Primary combat action executed this tick (skills 1-4, AA, or None). */
+    combatAction?: AtomicCombatAction;
+    /** Primary movement decision executed this tick (STAND, WALK, SPRINT to target point). */
+    movement?: AtomicMovementDecision;
+    /** Legacy action for backward compatibility. */
+    action?: CombatActionType;
     targetName?: string;
     npcMapId?: number;
     /** Target 2D coordinates `(x, y)` for in-screen movement or door approach. */

@@ -13,7 +13,12 @@ import {
 } from "../config/constants";
 import type { MatchRulesConfig } from "../config/match_config";
 import { isProtectedNpcName } from "../state/extractor";
-import type { CombatDecision, CombatObservation } from "../state/types";
+import type {
+    AtomicCombatAction,
+    AtomicMovementDecision,
+    CombatDecision,
+    CombatObservation,
+} from "../state/types";
 
 /**
  * Finds a safe NPC (Brawler/Restorer) in the current cell whose HP is high enough
@@ -64,132 +69,117 @@ export function applyRuleShield(
     obs: CombatObservation,
     _config: MatchRulesConfig,
 ): CombatDecision {
-    // 1. Hard Rule: Never use offensive skills (1..4) on a protected NPC (only basic auto-attack for mana tap)
+    let sanitizedCombat =
+        decision.combatAction ??
+        (decision.action === "USE_SKILL_1"
+            ? "USE_SKILL_1"
+            : decision.action === "USE_SKILL_2"
+              ? "USE_SKILL_2"
+              : decision.action === "USE_SKILL_3"
+                ? "USE_SKILL_3"
+                : decision.action === "USE_SKILL_4"
+                  ? "USE_SKILL_4"
+                  : decision.action === "MANA_TAP_NPC"
+                    ? "MANA_TAP_NPC"
+                    : decision.action === "TARGET_OPPONENT"
+                      ? "AUTO_ATTACK"
+                      : "NONE");
+
+    let sanitizedMovement: AtomicMovementDecision = decision.movement
+        ? { ...decision.movement }
+        : {
+              type:
+                  decision.action === "SPRINT_TO_POINT" || decision.action === "SPRINT_TO_DOOR"
+                      ? "SPRINT"
+                      : decision.action === "WALK_TO_POINT" || decision.action === "WALK_TO_DOOR"
+                        ? "WALK"
+                        : "STAND",
+              targetX: decision.targetX ?? Math.round(obs.selfX),
+              targetY: decision.targetY ?? Math.round(obs.selfY),
+              targetCell: decision.targetCell,
+              targetPad: decision.targetPad,
+          };
+
+    let sanitizedReason = decision.reason;
+
+    // 1. Hard Rule: Never use offensive skills on a protected NPC (mana-tap uses basic attacks only)
     if (obs.targetIsNpc) {
         if (
-            decision.action === "USE_SKILL_1" ||
-            decision.action === "USE_SKILL_2" ||
-            decision.action === "USE_SKILL_3" ||
-            decision.action === "USE_SKILL_4"
+            sanitizedCombat === "USE_SKILL_1" ||
+            sanitizedCombat === "USE_SKILL_2" ||
+            sanitizedCombat === "USE_SKILL_3" ||
+            sanitizedCombat === "USE_SKILL_4"
         ) {
-            return {
-                action: "IDLE",
-                reason: "[RuleShield] Blocked offensive skill on protected NPC (mana-tap uses basic attacks only).",
-            };
+            sanitizedCombat = "NONE";
+            sanitizedReason += " [RuleShield: blocked offensive skill on NPC]";
         }
     }
 
-    // 2. Hard Rule: Returning to Safezone (SZ) is prohibited mid-wave unless allowed by wave death/kill state
-    if (decision.action === "RETREAT_TO_SAFEZONE" && !obs.inSafezone) {
-        if (!obs.wave.canReturnToSafezone) {
-            return {
-                action: "IDLE",
-                reason: "[RuleShield] Blocked illegal mid-wave retreat to Safezone.",
-            };
+    // 2. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists
+    if (sanitizedCombat === "MANA_TAP_NPC") {
+        const safeNpc = findSafeManaTapNpc(obs);
+        if (!safeNpc) {
+            sanitizedCombat = "CANCEL_AUTO_ATTACK";
+            sanitizedReason += " [RuleShield: blocked NPC mana tap - HP too low]";
         }
-    }
-
-    if (
-        (decision.action === "WALK_TO_DOOR" || decision.action === "SPRINT_TO_DOOR") &&
-        decision.targetCell &&
-        BLUDRUT_SAFEZONE_CELLS.has(decision.targetCell) &&
-        !obs.inSafezone &&
-        !obs.wave.canReturnToSafezone
-    ) {
-        return {
-            action: "IDLE",
-            reason: `[RuleShield] Blocked illegal mid-wave door transition into Safezone (${decision.targetCell}).`,
-        };
     }
 
     // 3. Stun Guard: Hard-lock all movement while stunned, off-balance, or immobilized
-    // In Flash AQW, server rejects move packets when stunned. Moving on client causes massive desync!
     if (obs.selfStunned) {
-        if (
-            decision.action === "WALK_TO_POINT" ||
-            decision.action === "SPRINT_TO_POINT" ||
-            decision.action === "WALK_TO_DOOR" ||
-            decision.action === "SPRINT_TO_DOOR"
-        ) {
-            return {
-                action: "IDLE",
-                reason: "[RuleShield] Blocked movement while stunned/immobilized (preventing client-server position desync).",
-            };
+        if (sanitizedMovement.type !== "STAND") {
+            sanitizedMovement.type = "STAND";
+            sanitizedReason += " [RuleShield: frozen movement while stunned]";
         }
     }
 
-    // 4. Ground-Level & Stage Bounds Guard (Prevents "Roofing" & Door Trapping):
-    // In BludrutBrawl combat rooms (e.g., Crosslower), ground is strictly Y in [375, 440].
-    // Any target above Y=350 causes the client avatar to clip into the ceiling ("roofing").
-    // We also keep X in [300, 660] to prevent trapping against left (X<=230) and right (X>=745) doors.
+    // 4. Safezone transition lock mid-wave
     if (
-        (decision.action === "WALK_TO_POINT" || decision.action === "SPRINT_TO_POINT") &&
-        typeof decision.targetX === "number" &&
-        typeof decision.targetY === "number"
+        sanitizedMovement.targetCell &&
+        BLUDRUT_SAFEZONE_CELLS.has(sanitizedMovement.targetCell) &&
+        !obs.inSafezone &&
+        !obs.wave.canReturnToSafezone
     ) {
-        let safeX = decision.targetX;
-        let safeY = decision.targetY;
+        sanitizedMovement.type = "STAND";
+        sanitizedReason += " [RuleShield: blocked illegal mid-wave safezone jump]";
+    }
+
+    // 5. Stage Bounds Guard (Prevents "Roofing" & Door Trapping)
+    if (sanitizedMovement.type !== "STAND") {
+        let safeX = sanitizedMovement.targetX;
+        let safeY = sanitizedMovement.targetY;
 
         if (obs.currentCell.toLowerCase() === "crosslower") {
             safeX = Math.min(640, Math.max(320, safeX));
             safeY = Math.min(435, Math.max(375, safeY));
         } else {
-            // General safe floor bounds for all Bludrut screens
             safeY = Math.min(445, Math.max(345, safeY));
         }
 
-        decision = {
-            ...decision,
-            targetX: safeX,
-            targetY: safeY,
-        };
-    }
+        sanitizedMovement.targetX = safeX;
+        sanitizedMovement.targetY = safeY;
 
-    // 5. Trajectory Door-Collision Guard:
-    // When kiting inside the current screen (WALK_TO_POINT / SPRINT_TO_POINT), check if the linear
-    // path from (selfX, selfY) to (targetX, targetY) crosses any 2D door activation zone.
-    // If it does, clamp the destination just before the door boundary so the bot doesn't
-    // accidentally trigger a room transition!
-    if (
-        (decision.action === "WALK_TO_POINT" || decision.action === "SPRINT_TO_POINT") &&
-        !decision.targetName &&
-        typeof decision.targetX === "number" &&
-        typeof decision.targetY === "number"
-    ) {
-        const collision = checkTrajectoryDoorCollision(
-            obs.currentCell,
-            obs.selfX,
-            obs.selfY,
-            decision.targetX,
-            decision.targetY,
-        );
-        if (collision) {
-            const safeT = Math.max(0, collision.hitT - 0.15);
-            const clampedX = Math.round(obs.selfX + (decision.targetX - obs.selfX) * safeT);
-            const clampedY = Math.round(obs.selfY + (decision.targetY - obs.selfY) * safeT);
-            return {
-                ...decision,
-                targetX: clampedX,
-                targetY: clampedY,
-                reason: `${decision.reason} [RuleShield: clamped trajectory before ${collision.door.targetAlias} door trigger area]`,
-            };
+        // Trajectory collision check when not intentionally taking a door
+        if (!sanitizedMovement.targetCell) {
+            const collision = checkTrajectoryDoorCollision(
+                obs.currentCell,
+                obs.selfX,
+                obs.selfY,
+                safeX,
+                safeY,
+            );
+            if (collision) {
+                const safeT = Math.max(0, collision.hitT - 0.15);
+                sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
+                sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
+                sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
+            }
         }
     }
 
-    // 6. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists in the cell
-    if (decision.action === "MANA_TAP_NPC") {
-        const safeNpc = findSafeManaTapNpc(obs);
-        if (!safeNpc) {
-            return {
-                action: "CANCEL_AUTO_ATTACK",
-                reason: "[RuleShield] Blocked NPC mana-tap: no NPC with safe HP margin available.",
-            };
-        }
-        return {
-            ...decision,
-            npcMapId: safeNpc.mapId,
-        };
-    }
-
-    return decision;
+    return {
+        ...decision,
+        combatAction: sanitizedCombat,
+        movement: sanitizedMovement,
+        reason: sanitizedReason,
+    };
 }
