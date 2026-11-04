@@ -40,6 +40,57 @@ export function isProtectedNpcName(name: string | null | undefined): boolean {
     return PROTECTED_NPC_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+function checkSelfStunned(): boolean {
+    // 1. Direct ActionScript game function
+    try {
+        if (bot.flash.callGameFunction<boolean>("world.auraMoveBlocked")) {
+            return true;
+        }
+    } catch (_) {}
+
+    // 2. Avatar MC / dataLeaf stun flags
+    try {
+        if (
+            bot.flash.get<boolean>("world.myAvatar.pMC.isStunned") ||
+            bot.flash.get<boolean>("world.myAvatar.dataLeaf.isStunned")
+        ) {
+            return true;
+        }
+    } catch (_) {}
+
+    // 3. Check bot.self.auras (rich Aura objects with category and type)
+    try {
+        const activeAuras = bot.self.auras;
+        for (const a of activeAuras) {
+            const cat = (a.category ?? "").toLowerCase();
+            const typ = (a.type ?? "").toLowerCase();
+            const nm = (a.name ?? "").toLowerCase();
+            if (
+                cat === "stun" ||
+                cat === "disabled" ||
+                cat === "lock" ||
+                typ === "stun" ||
+                typ === "disabled" ||
+                /off balance|stun|stone|paralyze|disabled|petrif|frozen|sleep|root/i.test(nm)
+            ) {
+                return true;
+            }
+        }
+    } catch (_) {}
+
+    // 4. Check HUD aura snapshots
+    try {
+        const snapshots = bot.self.snapshots;
+        for (const s of snapshots) {
+            if (/off balance|stun|stone|paralyze|disabled|petrif|frozen|sleep|root/i.test(s.name)) {
+                return true;
+            }
+        }
+    } catch (_) {}
+
+    return false;
+}
+
 export function extractObservation(
     allyNames: ReadonlySet<string>,
     wave: WaveTrackerState,
@@ -126,11 +177,7 @@ export function extractObservation(
         selfWalkSpeed: bot.player.walkSpeed,
         selfAlive: bot.player.alive,
         selfInCombat: bot.player.inCombat,
-        selfStunned:
-            bot.flash.call("world.auraMoveBlocked") === "true" ||
-            bot.self.snapshots.some((a) =>
-                /off balance|stun|stone|paralyze|disabled/i.test(a.name),
-            ),
+        selfStunned: checkSelfStunned(),
         selfStats: bot.player.stats,
         selfAuras: bot.self.snapshots,
         skillsReady: [

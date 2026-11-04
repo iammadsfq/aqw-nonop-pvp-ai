@@ -24,36 +24,15 @@ let lastWalkCell = "";
 let lastWalkX = -1;
 let lastWalkY = -1;
 let lastWalkTime = 0;
-let lastSprintTime = 0;
-let lastRegenTickTime = 0;
 let currentCellTracker = "";
 let cellEnteredAt = 0;
-
-function maintainStaminaRegen(now: number, inCombat: boolean): void {
-    // In AQW:
-    // Out-of-Combat: +25 SP every 4.0 seconds
-    // In-Combat: stamina recovery is much slower and smaller: +10 SP every 8.0 seconds
-    const regenInterval = inCombat ? 8000 : 4000;
-    const regenAmount = inCombat ? 10 : 25;
-
-    // Must wait at least 3.0s after sprinting before stamina begins recovering
-    if (now - lastSprintTime >= 3000 && now - lastRegenTickTime >= regenInterval) {
-        const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
-        if (currentSp < 100) {
-            const regenedSp = Math.min(100, currentSp + regenAmount);
-            bot.flash.set("world.myAvatar.dataLeaf.intSP", regenedSp);
-            bot.flash.set("world.myAvatar.objData.intSP", regenedSp);
-            bot.flash.call("world.updatePortrait", "world.myAvatar");
-            bot.flash.call("world.updateActBar");
-            lastRegenTickTime = now;
-        }
-    }
-}
 
 function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprint: boolean): boolean {
     // If stunned, immediately freeze character movement on client to match server state!
     if (obs.selfStunned) {
-        bot.flash.call("world.myAvatar.pMC.stopWalking");
+        try {
+            bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
+        } catch (_) {}
         return false;
     }
 
@@ -72,19 +51,13 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
     lastWalkY = y;
     lastWalkTime = now;
 
+    // Rely on Flash/Server native intSP without artificially overriding it
     const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
     const canReallySprint = isSprint && currentSp >= AQW_SPRINT_STAMINA_COST;
 
     if (canReallySprint) {
-        lastSprintTime = now;
-        const newSp = Math.max(0, currentSp - AQW_SPRINT_STAMINA_COST);
-        bot.flash.set("world.myAvatar.dataLeaf.intSP", newSp);
-        bot.flash.set("world.myAvatar.objData.intSP", newSp);
         bot.flash.set("world.justRan", true);
         bot.flash.set("world.rootClass.pDash", true);
-        bot.flash.call("world.updatePortrait", "world.myAvatar");
-        bot.flash.call("world.updateActBar");
-
         bot.player.walkTo(x, y, AQW_SPRINT_WALK_SPEED);
     } else {
         bot.flash.set("world.justRan", false);
@@ -285,8 +258,17 @@ export default function main(): void {
 
         const obs = extractObservation(allyNames, wave);
         if (obs.currentCell !== currentCellTracker) {
+            // Stop residual walking immediately upon changing rooms so the avatar
+            // does NOT overshoot across the new screen to the previous click point!
+            try {
+                bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
+            } catch (_) {}
+            lastWalkCell = "";
+            lastWalkX = -1;
+            lastWalkY = -1;
             currentCellTracker = obs.currentCell;
             cellEnteredAt = Date.now();
+            bot.sleep(150);
         }
 
         // Immediately enforce NPC protection so a Brawler/Restorer is never killed
@@ -323,8 +305,6 @@ export default function main(): void {
             wave.opponentKilledInWave = false;
             wave.canReturnToSafezone = false;
         }
-
-        maintainStaminaRegen(Date.now(), obs.selfInCombat);
 
         const rawDecision = inferBattleWarriorDecision(obs);
         const safeDecision = applyRuleShield(rawDecision, obs, config);
