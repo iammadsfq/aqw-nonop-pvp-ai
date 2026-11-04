@@ -291,8 +291,10 @@ export default function main(): void {
             // Stop residual walking immediately upon changing rooms so the avatar
             // does NOT overshoot across the new screen to the previous click point!
             try {
+                bot.flash.set("world.myAvatar.pMC.mcChar.onMove", false);
                 bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
             } catch (_) {}
+            bot.player.walkTo(bot.player.x, bot.player.y, AQW_DEFAULT_WALK_SPEED);
             lastWalkCell = "";
             lastWalkX = -1;
             lastWalkY = -1;

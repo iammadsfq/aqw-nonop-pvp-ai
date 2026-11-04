@@ -136,8 +136,10 @@ def load_demonstrations(file_path: Path):
                 combat_act = 5
             elif "MANA_TAP" in act_name or act_idx == 10:
                 combat_act = 6
-            elif obs[20] > 0.5 and obs[21] > 0.5:
-                # Opponent is alive and in same room: continuous combat engagement (Auto-Attack)
+            elif r.get("combatAction") and r["combatAction"] > 0:
+                combat_act = int(r["combatAction"])
+            elif obs[20] > 0.5 and obs[21] > 0.5 and obs[23] > 0.5 and "KITE" not in act_name:
+                # In melee range with living opponent in room while engaged: Auto-Attack
                 combat_act = 1  # AUTO_ATTACK
             elif obs[4] > 0.5:  # inCombat flag
                 combat_act = 1  # AUTO_ATTACK

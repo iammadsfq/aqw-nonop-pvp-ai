@@ -29,6 +29,7 @@ export interface ExpertStepRecord {
     targetX: number;
     targetY: number;
     targetName?: string;
+    hasTarget?: boolean;
     isSprint: boolean;
 }
 
@@ -134,6 +135,7 @@ export default function main(): void {
         else if (actionIdx === 5) combatAct = 4; // S3
         else if (actionIdx === 6) combatAct = 5; // S4
         else if (actionIdx === 10) combatAct = 6; // MANA_TAP
+        else if (obs.hasTarget && !obs.targetIsNpc) combatAct = 1; // AA on targeted opponent player
         else if (obs.selfInCombat) combatAct = 1; // AA
 
         let moveType = 0;
@@ -161,6 +163,7 @@ export default function main(): void {
             targetX: clickTargetX,
             targetY: clickTargetY,
             targetName: obs.targetName ?? undefined,
+            hasTarget: obs.hasTarget,
             isSprint: justRan,
         };
 
