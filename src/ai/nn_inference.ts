@@ -312,23 +312,31 @@ export function inferBattleWarriorDecision(
 
         case 7: // KITE_AWAY
         case 8: { // SPRINT_KITE_AWAY
-            const awayX = oppInCell && oppInCell.x > obs.selfX ? 240 : 720;
-            const awayY = oppInCell && oppInCell.y > 360 ? 275 : 425;
+            // Center-biased tactical spacing: maintain ~180-240px distance while staying in the center arena
+            // NEVER run to X=240 (left door trap) or Y=275 (ceiling/roofing trap)
+            const oppX = oppInCell ? oppInCell.x : 480;
+            const oppY = oppInCell ? oppInCell.y : 405;
+            const centerPull = (480 - obs.selfX) * 0.25;
+            const awayDx = obs.selfX >= oppX ? 180 : -180;
+            const targetX = Math.round(Math.min(620, Math.max(340, obs.selfX + awayDx + centerPull)));
+            const targetY = Math.round(Math.min(430, Math.max(380, oppY > 405 ? 385 : 425)));
             return {
                 action: bestAct === 8 ? "SPRINT_TO_POINT" : "WALK_TO_POINT",
-                targetX: awayX,
-                targetY: awayY,
-                reason: `[PPO-NN:${actName}] Kiting away inside ${obs.currentCell} to (${awayX}, ${awayY}).`,
+                targetX,
+                targetY,
+                reason: `[PPO-NN:${actName}] Tactical spacing inside center arena at (${targetX}, ${targetY}).`,
             };
         }
 
         case 9: { // JUKE_VERTICAL
-            const jukeY = obs.selfY > 365 ? 320 : 415;
+            // Strictly stay on walkable ground Y in [380, 430] to eliminate the "roofing" bug
+            const jukeY = obs.selfY > 405 ? 385 : 425;
+            const targetX = Math.round(Math.min(620, Math.max(340, obs.selfX)));
             return {
                 action: "WALK_TO_POINT",
-                targetX: Math.round(obs.selfX),
+                targetX,
                 targetY: jukeY,
-                reason: `[PPO-NN:${actName}] Vertical Y-axis juke to Y=${jukeY}.`,
+                reason: `[PPO-NN:${actName}] Vertical Y-axis juke on ground to Y=${jukeY}.`,
             };
         }
 

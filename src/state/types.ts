@@ -59,6 +59,8 @@ export interface CombatObservation {
     selfWalkSpeed: number;
     selfAlive: boolean;
     selfInCombat: boolean;
+    /** True when under Stun, Off Balance, or movement-blocking CC (server locks position). */
+    selfStunned: boolean;
     selfStats: PlayerStats | null;
     selfAuras: AuraSnapshot[];
     skillsReady: [boolean, boolean, boolean, boolean];

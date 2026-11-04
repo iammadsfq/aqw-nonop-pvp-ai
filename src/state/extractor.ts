@@ -126,6 +126,11 @@ export function extractObservation(
         selfWalkSpeed: bot.player.walkSpeed,
         selfAlive: bot.player.alive,
         selfInCombat: bot.player.inCombat,
+        selfStunned:
+            bot.flash.call("world.auraMoveBlocked") === "true" ||
+            bot.self.snapshots.some((a) =>
+                /off balance|stun|stone|paralyze|disabled/i.test(a.name),
+            ),
         selfStats: bot.player.stats,
         selfAuras: bot.self.snapshots,
         skillsReady: [

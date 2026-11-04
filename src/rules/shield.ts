@@ -102,7 +102,50 @@ export function applyRuleShield(
         };
     }
 
-    // 3. Trajectory Door-Collision Guard:
+    // 3. Stun Guard: Hard-lock all movement while stunned, off-balance, or immobilized
+    // In Flash AQW, server rejects move packets when stunned. Moving on client causes massive desync!
+    if (obs.selfStunned) {
+        if (
+            decision.action === "WALK_TO_POINT" ||
+            decision.action === "SPRINT_TO_POINT" ||
+            decision.action === "WALK_TO_DOOR" ||
+            decision.action === "SPRINT_TO_DOOR"
+        ) {
+            return {
+                action: "IDLE",
+                reason: "[RuleShield] Blocked movement while stunned/immobilized (preventing client-server position desync).",
+            };
+        }
+    }
+
+    // 4. Ground-Level & Stage Bounds Guard (Prevents "Roofing" & Door Trapping):
+    // In BludrutBrawl combat rooms (e.g., Crosslower), ground is strictly Y in [375, 440].
+    // Any target above Y=350 causes the client avatar to clip into the ceiling ("roofing").
+    // We also keep X in [300, 660] to prevent trapping against left (X<=230) and right (X>=745) doors.
+    if (
+        (decision.action === "WALK_TO_POINT" || decision.action === "SPRINT_TO_POINT") &&
+        typeof decision.targetX === "number" &&
+        typeof decision.targetY === "number"
+    ) {
+        let safeX = decision.targetX;
+        let safeY = decision.targetY;
+
+        if (obs.currentCell.toLowerCase() === "crosslower") {
+            safeX = Math.min(640, Math.max(320, safeX));
+            safeY = Math.min(435, Math.max(375, safeY));
+        } else {
+            // General safe floor bounds for all Bludrut screens
+            safeY = Math.min(445, Math.max(345, safeY));
+        }
+
+        decision = {
+            ...decision,
+            targetX: safeX,
+            targetY: safeY,
+        };
+    }
+
+    // 5. Trajectory Door-Collision Guard:
     // When kiting inside the current screen (WALK_TO_POINT / SPRINT_TO_POINT), check if the linear
     // path from (selfX, selfY) to (targetX, targetY) crosses any 2D door activation zone.
     // If it does, clamp the destination just before the door boundary so the bot doesn't
@@ -133,7 +176,7 @@ export function applyRuleShield(
         }
     }
 
-    // 4. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists in the cell
+    // 6. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists in the cell
     if (decision.action === "MANA_TAP_NPC") {
         const safeNpc = findSafeManaTapNpc(obs);
         if (!safeNpc) {

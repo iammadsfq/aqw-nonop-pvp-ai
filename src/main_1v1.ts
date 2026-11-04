@@ -22,21 +22,43 @@ let lastWalkCell = "";
 let lastWalkX = -1;
 let lastWalkY = -1;
 let lastWalkTime = 0;
+let lastSprintTime = 0;
 let currentCellTracker = "";
 let cellEnteredAt = 0;
 
-function triggerSprintWalk(cell: string, x: number, y: number, isSprint: boolean): boolean {
+function maintainStaminaRegen(now: number): void {
+    // Regenerate +25 stamina every 4 seconds when not sprinting (up to 100 max)
+    if (now - lastSprintTime >= 4000) {
+        const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
+        if (currentSp < 100) {
+            const regenedSp = Math.min(100, currentSp + 25);
+            bot.flash.set("world.myAvatar.dataLeaf.intSP", regenedSp);
+            bot.flash.set("world.myAvatar.objData.intSP", regenedSp);
+            bot.flash.call("world.updatePortrait", "world.myAvatar");
+            bot.flash.call("world.updateActBar");
+            lastSprintTime = now;
+        }
+    }
+}
+
+function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprint: boolean): boolean {
+    // If stunned, immediately freeze character movement on client to match server state!
+    if (obs.selfStunned) {
+        bot.flash.call("world.myAvatar.pMC.stopWalking");
+        return false;
+    }
+
     const now = Date.now();
     const isMoving = Boolean(bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove"));
     const sameTarget =
-        cell === lastWalkCell && Math.hypot(x - lastWalkX, y - lastWalkY) <= 25;
+        obs.currentCell === lastWalkCell && Math.hypot(x - lastWalkX, y - lastWalkY) <= 25;
 
     // Throttle walkTo calls so Flash's mvTimer and onEnterFrameWalk are not reset every 100ms!
     if (sameTarget && isMoving && now - lastWalkTime < 650) {
         return false;
     }
 
-    lastWalkCell = cell;
+    lastWalkCell = obs.currentCell;
     lastWalkX = x;
     lastWalkY = y;
     lastWalkTime = now;
@@ -45,8 +67,7 @@ function triggerSprintWalk(cell: string, x: number, y: number, isSprint: boolean
     const canReallySprint = isSprint && currentSp >= AQW_SPRINT_STAMINA_COST;
 
     if (canReallySprint) {
-        // Explicitly deduct 50 stamina locally in Flash and update UI portrait/actbar
-        // so client and server stamina stay 100% in sync!
+        lastSprintTime = now;
         const newSp = Math.max(0, currentSp - AQW_SPRINT_STAMINA_COST);
         bot.flash.set("world.myAvatar.dataLeaf.intSP", newSp);
         bot.flash.set("world.myAvatar.objData.intSP", newSp);
@@ -121,7 +142,7 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
                 bot.combat.attackPlayer(decision.targetName);
             }
             if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, false);
+                shouldLog = triggerSprintWalk(obs, decision.targetX, decision.targetY, false);
             }
             break;
         case "SPRINT_TO_POINT":
@@ -129,17 +150,15 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
                 bot.combat.attackPlayer(decision.targetName);
             }
             if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, obs.canSprint);
+                shouldLog = triggerSprintWalk(obs, decision.targetX, decision.targetY, obs.canSprint);
             }
             break;
         case "WALK_TO_DOOR":
         case "SPRINT_TO_DOOR":
             if (typeof decision.targetX === "number" && typeof decision.targetY === "number") {
-                // NEVER call bot.map.jump! In /bludrutbrawl, the server strictly validates door hitboxes.
-                // Walking directly through the door coordinates triggers Flash's natural door transition
-                // on both client and server simultaneously, completely eliminating room desync!
-                const useSprint = decision.action === "SPRINT_TO_DOOR" && obs.canSprint;
-                shouldLog = triggerSprintWalk(obs.currentCell, decision.targetX, decision.targetY, useSprint);
+                // Room traversal ALWAYS uses normal walk speed (8 px/s) to ensure 100% server sync!
+                // Never sprint into doors. Normal walking ensures zero speed mismatch across room boundaries.
+                shouldLog = triggerSprintWalk(obs, decision.targetX, decision.targetY, false);
             }
             break;
         case "RETREAT_TO_SAFEZONE":
@@ -249,6 +268,8 @@ export default function main(): void {
             wave.opponentKilledInWave = false;
             wave.canReturnToSafezone = false;
         }
+
+        maintainStaminaRegen(Date.now());
 
         const rawDecision = inferBattleWarriorDecision(obs);
         const safeDecision = applyRuleShield(rawDecision, obs, config);
