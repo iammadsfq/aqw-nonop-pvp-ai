@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bludrut_env import (
     MAX_HP,
     OBS_DIM,
+    SCREEN_BY_CELL,
     Bludrut1v1Env,
 )
 from train_imitation import (
@@ -392,6 +393,8 @@ def evaluate_and_record_match(
             c_act_name = COMBAT_ACTION_NAMES[c_act.item()]
             m_act_name = MOVE_TYPE_NAMES[m_act.item()]
 
+            prev_agent_cell = env.agent.cell
+            prev_enemy_cell = env.enemy.cell
             prev_opp_hp = env.enemy.hp
             prev_ag_hp = env.agent.hp
 
@@ -404,7 +407,13 @@ def evaluate_and_record_match(
                 dmg_to_ag = max(0.0, prev_ag_hp - env.agent.hp)
 
                 log_msg = ""
-                if c_act.item() == 2:
+                if prev_agent_cell != env.agent.cell:
+                    alias = SCREEN_BY_CELL[env.agent.cell].alias if env.agent.cell in SCREEN_BY_CELL else env.agent.cell
+                    log_msg = f"🚪 Blue crossed door into {env.agent.cell} ({alias})"
+                elif prev_enemy_cell != env.enemy.cell:
+                    alias = SCREEN_BY_CELL[env.enemy.cell].alias if env.enemy.cell in SCREEN_BY_CELL else env.enemy.cell
+                    log_msg = f"🚪 Red crossed door into {env.enemy.cell} ({alias})"
+                elif c_act.item() == 2:
                     log_msg = f"Blue CAST Decisive Strike (S1) -> dealt {dmg_to_opp:.0f} dmg"
                 elif c_act.item() == 3:
                     log_msg = f"Blue CAST Imbalancing Strike (S2 Stun 4s) -> Opponent STUNNED!"
@@ -417,8 +426,15 @@ def evaluate_and_record_match(
                 elif dmg_to_ag > 0:
                     log_msg = f"Red attacked Blue -> dealt {dmg_to_ag:.0f} dmg"
 
+                agent_alias = SCREEN_BY_CELL[env.agent.cell].alias if env.agent.cell in SCREEN_BY_CELL else env.agent.cell
+                enemy_alias = SCREEN_BY_CELL[env.enemy.cell].alias if env.enemy.cell in SCREEN_BY_CELL else env.enemy.cell
+
                 match_frames.append({
                     "t": round(step_idx * 0.1, 2),
+                    "room": env.agent.cell,
+                    "room_alias": agent_alias,
+                    "enemy_room": env.enemy.cell,
+                    "enemy_room_alias": enemy_alias,
                     "agent": {
                         "x": round(env.agent.x, 1),
                         "y": round(env.agent.y, 1),
@@ -507,7 +523,7 @@ def train_ppo_compound(
     load_pretrained_imitation_weights(model, TS_WEIGHTS_PATH)
     optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-5)
 
-    env = Bludrut1v1Env(max_steps=500, seed=42)
+    env = Bludrut1v1Env(max_steps=600, seed=42)
 
     # Pre-training Baseline Evaluation
     print("\n[Baseline Evaluation] Evaluating initial policy against curriculum...")

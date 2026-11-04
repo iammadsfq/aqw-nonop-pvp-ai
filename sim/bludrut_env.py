@@ -274,6 +274,29 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
 SCREEN_BY_CELL: dict[str, ScreenSpec] = {s.cell: s for s in BLUDRUT_SCREENS}
 
 
+def compute_cell_graph_distances() -> dict[tuple[str, str], int]:
+    """Precomputes BFS shortest path screen hop distances between all 16 Bludrut Brawl cells."""
+    from collections import deque
+    cells = [s.cell for s in BLUDRUT_SCREENS]
+    dist_map = {}
+    for c1 in cells:
+        queue = deque([(c1, 0)])
+        visited = {c1}
+        while queue:
+            curr, d = queue.popleft()
+            dist_map[(c1, curr)] = d
+            screen = SCREEN_BY_CELL.get(curr)
+            if screen:
+                for door in screen.doors:
+                    if door.target_cell not in visited:
+                        visited.add(door.target_cell)
+                        queue.append((door.target_cell, d + 1))
+    return dist_map
+
+
+CELL_GRAPH_DIST: dict[tuple[str, str], int] = compute_cell_graph_distances()
+
+
 def check_trajectory_door_collision(
     cell: str, x0: float, y0: float, x1: float, y1: float
 ) -> tuple[DoorTrigger, float, float, float] | None:
@@ -416,7 +439,7 @@ class Bludrut1v1Env(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, max_steps: int = 600, opponent_policy: Any = None, seed: int | None = None):
+    def __init__(self, max_steps: int = 800, opponent_policy: Any = None, seed: int | None = None):
         super().__init__()
         self.max_steps = max_steps
         self.opponent_policy = opponent_policy
@@ -430,10 +453,11 @@ class Bludrut1v1Env(gym.Env):
         )
         self.action_space = spaces.Discrete(NUM_ACTIONS)
 
-        self.agent: FighterState = FighterState("Uma", "blue", "Crosslower", 340.0, 340.0)
-        self.enemy: FighterState = FighterState("Opponent", "red", "Crosslower", 620.0, 340.0)
+        self.agent: FighterState = FighterState("Uma", "blue", "Enter0", 350.0, 360.0)
+        self.enemy: FighterState = FighterState("Opponent", "red", "Enter1", 600.0, 360.0)
         self.npc_hp: dict[str, float] = {}
         self.step_count = 0
+        self.wave_won = False
 
     def _load_calibrated_spec(self) -> None:
         if SPEC_PATH.exists():
@@ -478,15 +502,39 @@ class Bludrut1v1Env(gym.Env):
             self.rng = np.random.default_rng(seed)
 
         self.step_count = 0
-        # Start duel in Mid (Crosslower) or adjacent B1 screen with slight position jitter
-        start_cell = "Crosslower"
-        ax = float(self.rng.uniform(280.0, 420.0))
-        ay = float(self.rng.uniform(300.0, 390.0))
-        ex = float(self.rng.uniform(540.0, 680.0))
-        ey = float(self.rng.uniform(300.0, 390.0))
+        self.wave_won = False
 
-        self.agent = FighterState("Uma", "blue", start_cell, ax, ay)
-        self.enemy = FighterState("Opponent", "red", start_cell, ex, ey)
+        # Curriculum / Full-Map Spawn Distribution:
+        # 60% of episodes: Realistic Safezone Match Flow (Enter0 vs Enter1)
+        # 30% of episodes: Adjacent corridors (Morale0C vs Morale0B, Morale1B vs Morale1C, Crosslower)
+        # 10% of episodes: Close quarters clashes in Captain rooms / Mid
+        spawn_type = float(self.rng.random())
+        if spawn_type < 0.60:
+            self.agent = FighterState(
+                "Uma", "blue", "Enter0",
+                350.0 + float(self.rng.uniform(-30, 30)),
+                360.0 + float(self.rng.uniform(-20, 20))
+            )
+            self.enemy = FighterState(
+                "Opponent", "red", "Enter1",
+                600.0 + float(self.rng.uniform(-30, 30)),
+                360.0 + float(self.rng.uniform(-20, 20))
+            )
+        elif spawn_type < 0.90:
+            rooms = ["Morale0C", "Morale0B", "Crosslower", "Morale1B", "Morale1C"]
+            c_agent = str(self.rng.choice(rooms))
+            c_opp = c_agent if self.rng.random() < 0.5 else str(self.rng.choice(rooms))
+            ax = float(self.rng.uniform(240.0, 420.0))
+            ay = float(self.rng.uniform(300.0, 420.0))
+            ex = float(self.rng.uniform(540.0, 720.0))
+            ey = float(self.rng.uniform(300.0, 420.0))
+            self.agent = FighterState("Uma", "blue", c_agent, ax, ay)
+            self.enemy = FighterState("Opponent", "red", c_opp, ex, ey)
+        else:
+            c = str(self.rng.choice(["Captain0", "Captain1", "Crosslower"]))
+            self.agent = FighterState("Uma", "blue", c, 380.0, 360.0)
+            self.enemy = FighterState("Opponent", "red", c, 580.0, 360.0)
+
         self.npc_hp = {s.cell: s.npc_max_hp for s in BLUDRUT_SCREENS if s.npc_max_hp > 0}
 
         return self._get_obs(self.agent, self.enemy), {}
@@ -566,18 +614,26 @@ class Bludrut1v1Env(gym.Env):
             return False
 
         ratio = min(1.0, max_step_dist / dist)
-        nx = float(np.clip(f.x + dx * ratio, 60.0, 900.0))
-        ny = float(np.clip(f.y + dy * ratio, 245.0, 495.0))
+        nx = float(np.clip(f.x + dx * ratio, 20.0, 940.0))
+        ny = float(np.clip(f.y + dy * ratio, 240.0, 500.0))
 
         hit = check_trajectory_door_collision(f.cell, f.x, f.y, nx, ny)
         if hit is not None:
             door, hit_t, _hx, _hy = hit
-            # Block illegal mid-wave entry into Safezone (`Enter0` / `Enter1`)
+            # Safezone door entry rules:
+            # Block entry to enemy safezone, or own safezone during active wave
             if door.target_cell in ("Enter0", "Enter1"):
-                safe_t = max(0.0, hit_t - 0.15)
-                f.x = f.x + (nx - f.x) * safe_t
-                f.y = f.y + (ny - f.y) * safe_t
-                return False
+                can_enter_sz = False
+                if door.target_cell == "Enter0" and f.team == "blue" and self.wave_won:
+                    can_enter_sz = True
+                elif door.target_cell == "Enter1" and f.team == "red" and self.wave_won:
+                    can_enter_sz = True
+
+                if not can_enter_sz:
+                    safe_t = max(0.0, hit_t - 0.15)
+                    f.x = f.x + (nx - f.x) * safe_t
+                    f.y = f.y + (ny - f.y) * safe_t
+                    return False
 
             if not allow_door:
                 # RuleShield clamp: stop right before the door trigger box
@@ -795,8 +851,8 @@ class Bludrut1v1Env(gym.Env):
             start_x, start_y = f.x, f.y
 
             if norm_x is not None and norm_y is not None:
-                target_x = max(80.0, min(860.0, norm_x * 960.0))
-                target_y = max(290.0, min(435.0, norm_y * 550.0))
+                target_x = max(20.0, min(940.0, norm_x * 960.0))
+                target_y = max(240.0, min(500.0, norm_y * 550.0))
                 self._move_fighter(f, target_x, target_y, sprint=sprint, allow_door=True)
             else:
                 if same_cell:
@@ -878,12 +934,15 @@ class Bludrut1v1Env(gym.Env):
         """Finds the door in `f.cell` leading toward `goal_cell` (BFS shortest path) and walks/sprints to its `aim_x, aim_y`."""
         if f.cell == goal_cell:
             return
-        screen = SCREEN_BY_CELL[f.cell]
-        chosen_door = screen.doors[0]
-        # Simple BFS to find which immediate neighbor is closest to `goal_cell`
+        screen = SCREEN_BY_CELL.get(f.cell)
+        if not screen or not screen.doors:
+            return
+
         from collections import deque
-        queue = deque([(d, d.target_cell) for d in screen.doors if d.target_cell not in ("Enter0", "Enter1")])
+        queue = deque([(d, d.target_cell) for d in screen.doors])
         visited = {f.cell}
+        chosen_door = screen.doors[0]
+
         while queue:
             first_door, curr = queue.popleft()
             if curr == goal_cell:
@@ -892,9 +951,13 @@ class Bludrut1v1Env(gym.Env):
             if curr in visited:
                 continue
             visited.add(curr)
-            for nd in SCREEN_BY_CELL[curr].doors:
-                if nd.target_cell not in visited and nd.target_cell not in ("Enter0", "Enter1"):
-                    queue.append((first_door, nd.target_cell))
+            curr_screen = SCREEN_BY_CELL.get(curr)
+            if curr_screen:
+                for nd in curr_screen.doors:
+                    if nd.target_cell not in visited:
+                        if nd.target_cell in ("Enter0", "Enter1") and not self.wave_won:
+                            continue
+                        queue.append((first_door, nd.target_cell))
 
         self._move_fighter(f, chosen_door.aim_x, chosen_door.aim_y, sprint=sprint, allow_door=True)
 
@@ -968,6 +1031,8 @@ class Bludrut1v1Env(gym.Env):
         self.step_count += 1
         opp_action = self._heuristic_opponent_action(self.enemy, self.agent)
 
+        prev_agent_cell = self.agent.cell
+        prev_enemy_cell = self.enemy.cell
         prev_agent_hp = self.agent.hp
         prev_enemy_hp = self.enemy.hp
         prev_agent_mp = self.agent.mp
@@ -994,22 +1059,27 @@ class Bludrut1v1Env(gym.Env):
         # 3. Crowd Control Dividend (incapacitating the opponent in-combat)
         r_stun = 0.04 if (self.enemy.stun_rem > 0.0 and self.enemy.cell == self.agent.cell) else 0.0
 
-        # 4. Dynamic Concave Mana Potential (Logarithmic Diminishing Marginal Utility)
+        # 4. Navigation Potential Reward across 16 screens
+        prev_hop_dist = CELL_GRAPH_DIST.get((prev_agent_cell, prev_enemy_cell), 0)
+        curr_hop_dist = CELL_GRAPH_DIST.get((self.agent.cell, self.enemy.cell), 0)
+        r_nav = (prev_hop_dist - curr_hop_dist) * 0.25
+
+        # 5. Dynamic Concave Mana Potential (Logarithmic Diminishing Marginal Utility)
         def mana_potential(mp: float) -> float:
             return 0.5 * math.log(1.0 + 4.0 * max(0.0, mp) / MAX_MP)
 
         f_mana = mana_potential(self.agent.mp) - mana_potential(prev_agent_mp)
 
-        # 5. Dynamic Stamina Potential
+        # 6. Dynamic Stamina Potential
         def stamina_potential(sp: float) -> float:
             return 0.2 * (max(0.0, sp) / MAX_SP)
 
         f_stamina = stamina_potential(self.agent.sp) - stamina_potential(prev_agent_sp)
 
-        # 6. Step penalty (Time efficiency to encourage decisive win)
+        # 7. Step penalty (Time efficiency to encourage decisive win)
         r_time = -0.002
 
-        reward = r_ehp + r_mitigation + r_stun + f_mana + f_stamina + r_time - pen_agent
+        reward = r_ehp + r_mitigation + r_stun + r_nav + f_mana + f_stamina + r_time - pen_agent
 
         terminated = False
         truncated = False
@@ -1020,6 +1090,7 @@ class Bludrut1v1Env(gym.Env):
             info["winner"] = "draw"
         elif self.enemy.hp <= 0.0:
             terminated = True
+            self.wave_won = True
             reward += 10.0 + 5.0 * (self.agent.hp / self.agent.max_hp)
             info["winner"] = "agent"
         elif self.agent.hp <= 0.0:

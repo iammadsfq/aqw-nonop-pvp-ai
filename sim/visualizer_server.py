@@ -12,6 +12,7 @@ from typing import Any
 
 PORT = 8088
 HTML_PATH = Path(__file__).resolve().parent / "visualizer.html"
+DATA_PATH = Path(__file__).resolve().parent / "telemetry.json"
 
 # Global thread-safe telemetry store
 TELEMETRY_LOCK = threading.Lock()
@@ -28,6 +29,35 @@ TELEMETRY_DATA: dict[str, Any] = {
     "matches": {}, # update -> match_data
     "latest_match": None,
 }
+
+
+def save_telemetry_to_disk():
+    try:
+        tmp_path = DATA_PATH.with_suffix(".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(TELEMETRY_DATA, f)
+        tmp_path.replace(DATA_PATH)
+    except Exception as e:
+        pass
+
+
+LAST_LOADED_MTIME = 0.0
+
+
+def load_telemetry_from_disk():
+    global LAST_LOADED_MTIME
+    if not DATA_PATH.exists():
+        return
+    try:
+        mtime = DATA_PATH.stat().st_mtime
+        if mtime <= LAST_LOADED_MTIME:
+            return
+        with open(DATA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            TELEMETRY_DATA.update(data)
+            LAST_LOADED_MTIME = mtime
+    except Exception:
+        pass
 
 
 def update_training_status(
@@ -55,6 +85,7 @@ def update_training_status(
             "loss_rate": metrics.get("loss_rate", 1.0),
             "avg_win_hp": metrics.get("avg_win_hp_ratio", 0.0),
         })
+        save_telemetry_to_disk()
 
 
 def record_eval_match(match_data: dict[str, Any]):
@@ -62,6 +93,7 @@ def record_eval_match(match_data: dict[str, Any]):
         up = match_data.get("update", 0)
         TELEMETRY_DATA["matches"][up] = match_data
         TELEMETRY_DATA["latest_match"] = match_data
+        save_telemetry_to_disk()
 
 
 class TelemetryHandler(BaseHTTPRequestHandler):
@@ -77,6 +109,8 @@ class TelemetryHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed_path = self.path.split("?")[0]
+        with TELEMETRY_LOCK:
+            load_telemetry_from_disk()
 
         if parsed_path == "/api/status":
             with TELEMETRY_LOCK:
@@ -153,9 +187,24 @@ class TelemetryHandler(BaseHTTPRequestHandler):
         pass
 
 
-def start_visualizer_server(port: int = PORT) -> tuple[HTTPServer, threading.Thread]:
-    server = HTTPServer(("0.0.0.0", port), TelemetryHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    print(f"[Visualizer Server] Live PvP Arena Dashboard available at http://localhost:{port}")
-    return server, thread
+def start_visualizer_server(port: int = PORT) -> tuple[HTTPServer | None, threading.Thread | None]:
+    load_telemetry_from_disk()
+    try:
+        server = HTTPServer(("0.0.0.0", port), TelemetryHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        print(f"[Visualizer Server] Live PvP Arena Dashboard available at http://localhost:{port}")
+        return server, thread
+    except OSError:
+        print(f"[Visualizer Server] Server already active on port {port}")
+        return None, None
+
+
+if __name__ == "__main__":
+    load_telemetry_from_disk()
+    print(f"[Visualizer Server] Starting standalone server on http://localhost:{PORT}")
+    server = HTTPServer(("0.0.0.0", PORT), TelemetryHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[Visualizer Server] Stopped.")

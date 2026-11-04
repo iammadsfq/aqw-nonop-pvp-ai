@@ -38,6 +38,8 @@ runs/
 *.onnx
 *.pt
 *.pth
+sim/telemetry.json
+*.tmp
 
 # OS & Editor files
 .DS_Store

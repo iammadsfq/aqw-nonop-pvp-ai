@@ -258,9 +258,11 @@
     });
 
     // --- Networking: Polling Live Server ---
+    const API_BASE = (window.location.protocol.startsWith('http') && window.location.port === '8088') ? '' : 'http://localhost:8088';
+
     async function pollStatus() {
       try {
-        const res = await fetch('http://localhost:8088/api/status');
+        const res = await fetch(`${API_BASE}/api/status`);
         if (!res.ok) throw new Error("Status failed");
         const data = await res.json();
 
@@ -302,7 +304,7 @@
 
     async function fetchLatestMatch() {
       try {
-        const res = await fetch('http://localhost:8088/api/latest_match');
+        const res = await fetch(`${API_BASE}/api/latest_match`);
         if (!res.ok) return;
         const match = await res.json();
         loadMatch(match);
@@ -311,7 +313,7 @@
 
     async function fetchMatchByUpdate(updateNum) {
       try {
-        const res = await fetch(`http://localhost:8088/api/match/${updateNum}`);
+        const res = await fetch(`${API_BASE}/api/match/${updateNum}`);
         if (!res.ok) return;
         const match = await res.json();
         loadMatch(match);
@@ -390,39 +392,126 @@
 
       const blue = frame.agent;
       const red = frame.enemy;
+      const blueRoom = frame.room || "Crosslower";
+      const redRoom = frame.enemy_room || "Crosslower";
+      const sameRoom = blueRoom === redRoom;
+
+      // Draw Room Title & Mini-Map Header
+      drawRoomHeader(frame);
 
       // Draw Distance & Line between Fighters
-      const dist = Math.hypot(blue.x - red.x, blue.y - red.y);
-      const inMelee = dist <= 301.0;
+      if (sameRoom) {
+        const dist = Math.hypot(blue.x - red.x, blue.y - red.y);
+        const inMelee = dist <= 301.0;
 
-      ctx.beginPath();
-      ctx.strokeStyle = inMelee ? 'rgba(239, 68, 68, 0.4)' : 'rgba(148, 163, 184, 0.2)';
-      ctx.setLineDash([4, 6]);
-      ctx.lineWidth = 1.5;
-      ctx.moveTo(blue.x, blue.y);
-      ctx.lineTo(red.x, red.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.strokeStyle = inMelee ? 'rgba(239, 68, 68, 0.4)' : 'rgba(148, 163, 184, 0.2)';
+        ctx.setLineDash([4, 6]);
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(blue.x, blue.y);
+        ctx.lineTo(red.x, red.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-      // Distance tag
-      const midX = (blue.x + red.x) / 2;
-      const midY = (blue.y + red.y) / 2 - 12;
-      ctx.fillStyle = inMelee ? '#f87171' : '#94a3b8';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${Math.round(dist)}px ${inMelee ? '(MELEE)' : ''}`, midX, midY);
+        // Distance tag
+        const midX = (blue.x + red.x) / 2;
+        const midY = (blue.y + red.y) / 2 - 12;
+        ctx.fillStyle = inMelee ? '#f87171' : '#94a3b8';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${Math.round(dist)}px ${inMelee ? '(MELEE)' : ''}`, midX, midY);
+      } else {
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`🔍 Opponent in different screen: [${frame.enemy_room_alias || redRoom}]`, 480, 48);
+      }
 
       // Draw Target Pointer (Blue Agent's AI Reticle)
       if (blue.target_x !== undefined && blue.target_y !== undefined) {
         drawTargetReticle(blue.x, blue.y, blue.target_x, blue.target_y, blue.move === 'SPRINT');
       }
 
-      // Draw Fighters
+      // Draw Fighters (Ghost opacity for opponent if in different room)
       drawFighter(blue, 'blue');
-      drawFighter(red, 'red');
+      if (sameRoom) {
+        drawFighter(red, 'red');
+      } else {
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        drawFighter(red, 'red');
+        ctx.restore();
+      }
 
       // Draw Blue Agent HUD Cooldowns at Bottom
       drawCooldownHUD(blue);
+    }
+
+    function drawRoomHeader(frame) {
+      const blueRoom = frame.room || "Crosslower";
+      const blueAlias = frame.room_alias || blueRoom;
+      const redRoom = frame.enemy_room || "Crosslower";
+
+      // Room Title Badge
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fillRect(330, 8, 300, 26);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(330, 8, 300, 26);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CURRENT ROOM: ${blueAlias.toUpperCase()}`, 480, 25);
+
+      // Mini-Map Corridor Chain (9 screens across main corridor)
+      const chain = [
+        { c: "Enter0", label: "SZ0" },
+        { c: "Morale0C", label: "B3" },
+        { c: "Morale0B", label: "B2" },
+        { c: "Morale0A", label: "B1" },
+        { c: "Crosslower", label: "MID" },
+        { c: "Morale1A", label: "R1" },
+        { c: "Morale1B", label: "R2" },
+        { c: "Morale1C", label: "R3" },
+        { c: "Enter1", label: "SZ1" },
+      ];
+
+      const startX = 260;
+      const startY = 485;
+      const nodeW = 44;
+      const gap = 6;
+
+      chain.forEach((node, i) => {
+        const nx = startX + i * (nodeW + gap);
+        const isBlueHere = blueRoom === node.c;
+        const isRedHere = redRoom === node.c;
+
+        ctx.fillStyle = isBlueHere ? 'rgba(59, 130, 246, 0.4)' : isRedHere ? 'rgba(239, 68, 68, 0.4)' : 'rgba(30, 41, 59, 0.6)';
+        ctx.fillRect(nx, startY, nodeW, 20);
+        ctx.strokeStyle = isBlueHere ? '#3b82f6' : isRedHere ? '#ef4444' : '#334155';
+        ctx.lineWidth = (isBlueHere || isRedHere) ? 2 : 1;
+        ctx.strokeRect(nx, startY, nodeW, 20);
+
+        ctx.fillStyle = isBlueHere ? '#93c5fd' : isRedHere ? '#fca5a5' : '#64748b';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, nx + nodeW / 2, startY + 14);
+
+        // Indicator dots
+        if (isBlueHere) {
+          ctx.beginPath();
+          ctx.arc(nx + 8, startY + 4, 3, 0, Math.PI * 2);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fill();
+        }
+        if (isRedHere) {
+          ctx.beginPath();
+          ctx.arc(nx + nodeW - 8, startY + 4, 3, 0, Math.PI * 2);
+          ctx.fillStyle = '#f87171';
+          ctx.fill();
+        }
+      });
     }
 
     function drawArenaFloor() {
