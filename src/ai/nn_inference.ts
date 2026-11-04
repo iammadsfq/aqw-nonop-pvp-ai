@@ -8,7 +8,11 @@
  * -> `26 -> 64 (tanh) -> 64 (tanh) -> 14` logits -> Action Masking -> `CombatDecision`.
  */
 
-import { BLUDRUT_16_SCREENS, findNextDoorTowardCell } from "../config/constants";
+import {
+    BLUDRUT_16_SCREENS,
+    findNextDoorTowardCell,
+    getDoorAimCoordinates,
+} from "../config/constants";
 import { findSafeManaTapNpc } from "../rules/shield";
 import type { CombatDecision, CombatObservation } from "../state/types";
 import { BATTLE_WARRIOR_1V1_POLICY_WEIGHTS, type TrainedMlpPolicySpec } from "./trained_policy_weights";
@@ -140,12 +144,13 @@ export function inferBattleWarriorDecision(
         if (obs.selfHpRatio >= 0.95 && obs.selfMpRatio >= 0.85) {
             const exitDoor = findNextDoorTowardCell(obs.currentCell, "Crosslower");
             if (exitDoor) {
+                const aim = getDoorAimCoordinates(exitDoor, obs.selfX, obs.selfY);
                 return {
                     action: obs.canSprint ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: exitDoor.targetCell,
                     targetPad: exitDoor.targetPad,
-                    targetX: exitDoor.aimX,
-                    targetY: exitDoor.aimY,
+                    targetX: aim.x,
+                    targetY: aim.y,
                     reason: `[PPO-NN] Ready in Safezone (${obs.currentCell}); exiting door to ${exitDoor.targetAlias} (${exitDoor.targetCell}).`,
                 };
             }
@@ -175,12 +180,13 @@ export function inferBattleWarriorDecision(
         if (obs.currentCell.toLowerCase() !== goalCell.toLowerCase()) {
             const nextDoor = findNextDoorTowardCell(obs.currentCell, goalCell);
             if (nextDoor) {
+                const aim = getDoorAimCoordinates(nextDoor, obs.selfX, obs.selfY);
                 return {
                     action: obs.canSprint ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: nextDoor.targetCell,
                     targetPad: nextDoor.targetPad,
-                    targetX: nextDoor.aimX,
-                    targetY: nextDoor.aimY,
+                    targetX: aim.x,
+                    targetY: aim.y,
                     reason: `[PPO-NN] Navigating ${obs.currentCell} -> ${nextDoor.targetAlias} (${nextDoor.targetCell}) toward ${goalCell}.`,
                 };
             }
@@ -219,14 +225,6 @@ export function inferBattleWarriorDecision(
     if (!obs.skillsReady[3] || !inMelee) masked[6] = -1e9; // USE_SKILL_4 (On Guard)
     if (!safeNpc || obs.selfMp >= 35) masked[10] = -1e9;   // MANA_TAP_NPC (only when MP < 35)
 
-    // While healthy (HP >= 50%) with an opponent in cell, stay engaged rather than fleeing the room or kiting out of melee range
-    if (obs.selfHpRatio >= 0.50) {
-        masked[7] = -1e9;  // KITE_AWAY
-        masked[8] = -1e9;  // SPRINT_KITE_AWAY
-        masked[11] = -1e9; // WALK_DOOR_FORWARD
-        masked[12] = -1e9; // WALK_DOOR_BACKWARD
-        masked[13] = -1e9; // SPRINT_DOOR_BACKWARD
-    }
     // While Prepared Strike is active (next 2 Auto Attacks are unavoidable Crits), hold melee lock so Auto Attacks swing immediately
     if (prepAura && inMelee) {
         masked[9] = -1e9;  // JUKE_VERTICAL
@@ -357,16 +355,47 @@ export function inferBattleWarriorDecision(
                 const nonSzDoors = screenSpec.doors.filter(
                     (d) => d.targetCell !== "Enter0" && d.targetCell !== "Enter1",
                 );
-                const door =
-                    (bestAct === 11 ? nonSzDoors[nonSzDoors.length - 1] : nonSzDoors[0]) ??
-                    screenSpec.doors[0]!;
+                let door = nonSzDoors[0] ?? screenSpec.doors[0]!;
+
+                if (obs.currentCell.toLowerCase() === "crosslower") {
+                    // Mid screen (Crosslower): supports advance, friendly fallback, or retreat to Top (Crossupper)
+                    const topDoor = nonSzDoors.find((d) => d.targetCell.toLowerCase() === "crossupper");
+                    const blueDoor = nonSzDoors.find((d) => d.targetCell.toLowerCase() === "morale0a");
+                    const redDoor = nonSzDoors.find((d) => d.targetCell.toLowerCase() === "morale1a");
+
+                    if (bestAct === 11) {
+                        door = redDoor ?? nonSzDoors[nonSzDoors.length - 1] ?? screenSpec.doors[0]!;
+                    } else if (obs.selfHpRatio < 0.40 && topDoor) {
+                        // Tactical retreat: take high-ground / Restorer route
+                        door = topDoor;
+                    } else {
+                        door = blueDoor ?? nonSzDoors[0] ?? screenSpec.doors[0]!;
+                    }
+                } else if (obs.currentCell.toLowerCase() === "crossupper") {
+                    // Top screen (Crossupper): wide bottom door back to Mid or side doors into Restorers
+                    const midDoor = nonSzDoors.find((d) => d.targetCell.toLowerCase() === "crosslower");
+                    const blueR1 = nonSzDoors.find((d) => d.targetCell.toLowerCase() === "resource0a");
+                    const redR1 = nonSzDoors.find((d) => d.targetCell.toLowerCase() === "resource1a");
+
+                    if (obs.selfHpRatio < 0.35) {
+                        door = blueR1 ?? redR1 ?? midDoor ?? nonSzDoors[0]!;
+                    } else {
+                        door = midDoor ?? nonSzDoors[0]!;
+                    }
+                } else {
+                    door =
+                        (bestAct === 11 ? nonSzDoors[nonSzDoors.length - 1] : nonSzDoors[0]) ??
+                        screenSpec.doors[0]!;
+                }
+
+                const aim = getDoorAimCoordinates(door, obs.selfX, obs.selfY);
                 return {
                     action: bestAct === 13 ? "SPRINT_TO_DOOR" : "WALK_TO_DOOR",
                     targetCell: door.targetCell,
                     targetPad: door.targetPad,
-                    targetX: door.aimX,
-                    targetY: door.aimY,
-                    reason: `[PPO-NN:${actName}] Transitioning to ${door.targetAlias} (${door.targetCell}).`,
+                    targetX: aim.x,
+                    targetY: aim.y,
+                    reason: `[PPO-NN:${actName}] Transitioning to ${door.targetAlias} (${door.targetCell}) at (${aim.x}, ${aim.y}).`,
                 };
             }
             return { action: "IDLE", reason: `[PPO-NN:${actName}] No valid door available.` };

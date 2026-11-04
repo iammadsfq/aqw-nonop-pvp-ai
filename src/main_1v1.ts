@@ -18,25 +18,34 @@ import { applyRuleShield, enforceNpcProtectionGuard } from "./rules/shield";
 import { extractObservation } from "./state/extractor";
 import type { CombatDecision, CombatObservation, WaveTrackerState } from "./state/types";
 
+declare const process: { argv?: string[]; env?: Record<string, string> } | undefined;
+
 let lastWalkCell = "";
 let lastWalkX = -1;
 let lastWalkY = -1;
 let lastWalkTime = 0;
 let lastSprintTime = 0;
+let lastRegenTickTime = 0;
 let currentCellTracker = "";
 let cellEnteredAt = 0;
 
-function maintainStaminaRegen(now: number): void {
-    // Regenerate +25 stamina every 4 seconds when not sprinting (up to 100 max)
-    if (now - lastSprintTime >= 4000) {
+function maintainStaminaRegen(now: number, inCombat: boolean): void {
+    // In AQW:
+    // Out-of-Combat: +25 SP every 4.0 seconds
+    // In-Combat: stamina recovery is much slower and smaller: +10 SP every 8.0 seconds
+    const regenInterval = inCombat ? 8000 : 4000;
+    const regenAmount = inCombat ? 10 : 25;
+
+    // Must wait at least 3.0s after sprinting before stamina begins recovering
+    if (now - lastSprintTime >= 3000 && now - lastRegenTickTime >= regenInterval) {
         const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
         if (currentSp < 100) {
-            const regenedSp = Math.min(100, currentSp + 25);
+            const regenedSp = Math.min(100, currentSp + regenAmount);
             bot.flash.set("world.myAvatar.dataLeaf.intSP", regenedSp);
             bot.flash.set("world.myAvatar.objData.intSP", regenedSp);
             bot.flash.call("world.updatePortrait", "world.myAvatar");
             bot.flash.call("world.updateActBar");
-            lastSprintTime = now;
+            lastRegenTickTime = now;
         }
     }
 }
@@ -176,13 +185,24 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
 }
 
 export default function main(): void {
+    const rawArgs = typeof process !== "undefined" && process.argv ? process.argv : [];
+    const teamArg =
+        rawArgs.find((a) => a.startsWith("--team="))?.split("=")[1]?.toLowerCase() ??
+        (rawArgs.includes("--red") || rawArgs.includes("red") ? "red" : undefined) ??
+        (rawArgs.includes("--blue") || rawArgs.includes("blue") ? "blue" : undefined) ??
+        (typeof process !== "undefined" && process.env?.AQW_TEAM ? process.env.AQW_TEAM.toLowerCase() : undefined);
+
+    let isRedTeam = teamArg === "red";
+    let safezoneCell = isRedTeam ? "Enter1" : "Enter0";
+    let combatCell = isRedTeam ? "Morale1C" : "Morale0C";
+
     const config = createMatchConfig("1v1", {
         mapName: "bludrutbrawl",
-        combatCell: "Morale0C",
-        safezoneCell: "Enter0",
+        combatCell,
+        safezoneCell,
     });
 
-    bot.log(`[Non-OP PvP AI] Initializing ${config.format} match (Target: ${config.killTarget} kills)...`);
+    bot.log(`[Non-OP PvP AI] Initializing ${config.format} match for Team ${isRedTeam ? "RED" : "BLUE"} (Target: ${config.killTarget} kills)...`);
 
     while (!bot.player.loggedIn || !bot.player.loaded) {
         bot.sleep(500);
@@ -190,11 +210,46 @@ export default function main(): void {
 
     // Automatically join private /bludrutbrawl-99999 room if not already in bludrutbrawl
     if (bot.map.name.toLowerCase() !== "bludrutbrawl") {
-        bot.log("[Non-OP PvP AI] Joining /bludrutbrawl-99999 arena...");
-        bot.map.join("bludrutbrawl-99999", "Enter0", "Spawn");
+        const joinCell = isRedTeam ? "Enter1" : "Enter0";
+        bot.log(`[Non-OP PvP AI] Joining /bludrutbrawl-99999 arena (${joinCell})...`);
+        bot.map.join("bludrutbrawl-99999", joinCell, "Spawn");
         bot.wait.forMapLoad("bludrutbrawl", 30);
         bot.sleep(1000);
     }
+
+    // Inspect server-assigned PvP Faction in Flash (0 = Blue, 1 = Red)
+    // to detect if server overrode team or if player was placed in opposite safezone
+    const serverPvpTeam =
+        bot.flash.get<number>("world.myAvatar.objData.pvpTeam") ??
+        bot.flash.get<number>("world.myAvatar.pvpTeam");
+
+    if (serverPvpTeam === 1 || bot.player.cell.toLowerCase() === "enter1" || bot.player.cell.includes("1")) {
+        isRedTeam = true;
+        safezoneCell = "Enter1";
+        combatCell = "Morale1C";
+        config.safezoneCell = safezoneCell;
+        config.combatCell = combatCell;
+
+        if (bot.player.cell.toLowerCase() === "enter0") {
+            bot.log("[TeamSync] Assigned to Red Team (1) but currently in Blue Safezone (Enter0). Relocating to Enter1...");
+            bot.map.jump("Enter1", "Spawn");
+            bot.sleep(1000);
+        }
+    } else {
+        isRedTeam = false;
+        safezoneCell = "Enter0";
+        combatCell = "Morale0C";
+        config.safezoneCell = safezoneCell;
+        config.combatCell = combatCell;
+
+        if (bot.player.cell.toLowerCase() === "enter1") {
+            bot.log("[TeamSync] Assigned to Blue Team (0) but currently in Red Safezone (Enter1). Relocating to Enter0...");
+            bot.map.jump("Enter0", "Spawn");
+            bot.sleep(1000);
+        }
+    }
+
+    bot.log(`[TeamSync] Confirmed active team: ${isRedTeam ? "RED (Enter1 / Morale1C)" : "BLUE (Enter0 / Morale0C)"}.`);
 
     const preflight = runNonOpPreflightCheck(config);
     bot.log(`[PreFlight] Class="${preflight.equippedClass}", Amulet="${preflight.equippedAmulet ?? "None"}"`);
@@ -269,7 +324,7 @@ export default function main(): void {
             wave.canReturnToSafezone = false;
         }
 
-        maintainStaminaRegen(Date.now());
+        maintainStaminaRegen(Date.now(), obs.selfInCombat);
 
         const rawDecision = inferBattleWarriorDecision(obs);
         const safeDecision = applyRuleShield(rawDecision, obs, config);

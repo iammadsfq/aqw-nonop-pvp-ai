@@ -770,6 +770,26 @@ export function findNextDoorTowardCell(
 }
 
 /**
+ * Calculates the optimal aim coordinates inside a door trigger area.
+ * For wide horizontal doors (like the bottom door of Top -> Mid, spanning x: 120..900),
+ * it returns the closest point along the door trigger directly matching the character's
+ * current X position, avoiding unnecessary diagonal traversal across the screen!
+ */
+export function getDoorAimCoordinates(
+    door: DoorTriggerArea,
+    currentX: number,
+    _currentY: number,
+): { x: number; y: number } {
+    const width = door.xMax - door.xMin;
+    if (width >= 250) {
+        // Wide door trigger area: enter through the nearest point along its width
+        const clampedX = Math.round(Math.max(door.xMin + 30, Math.min(door.xMax - 30, currentX)));
+        return { x: clampedX, y: door.aimY };
+    }
+    return { x: door.aimX, y: door.aimY };
+}
+
+/**
  * Checks whether a linear walk trajectory from `(x0, y0)` to `(x1, y1)` inside `cell`
  * intersects any 2D door activation zone (`DoorTriggerArea`) along the path.
  * Uses the Liang-Barsky line-segment vs AABB intersection algorithm.
