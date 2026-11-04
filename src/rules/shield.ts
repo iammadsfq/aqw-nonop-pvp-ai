@@ -143,36 +143,43 @@ export function applyRuleShield(
         sanitizedReason += " [RuleShield: blocked illegal mid-wave safezone jump]";
     }
 
-    // 5. Stage Bounds Guard (Prevents "Roofing" & Door Trapping)
+    // 5. Stage Bounds Guard (Prevents "Roofing" & Accidental Door Trapping)
     if (sanitizedMovement.type !== "STAND") {
+        // If movement is an intentional door transition, allow walking directly to door trigger!
+        if (sanitizedMovement.targetCell) {
+            return {
+                ...decision,
+                combatAction: sanitizedCombat,
+                movement: sanitizedMovement,
+                reason: sanitizedReason,
+            };
+        }
+
         let safeX = sanitizedMovement.targetX;
         let safeY = sanitizedMovement.targetY;
 
-        if (obs.currentCell.toLowerCase() === "crosslower") {
-            safeX = Math.min(640, Math.max(320, safeX));
-            safeY = Math.min(435, Math.max(375, safeY));
-        } else {
-            safeY = Math.min(445, Math.max(345, safeY));
-        }
+        // Stage bounds for in-room combat & kiting:
+        // Clamps to walkable area (X: 60..900, Y: 240..460) to prevent roofing (Y < 220)
+        // while allowing full 2D movement across platforms and floor.
+        safeX = Math.min(900, Math.max(60, safeX));
+        safeY = Math.min(460, Math.max(240, safeY));
 
         sanitizedMovement.targetX = safeX;
         sanitizedMovement.targetY = safeY;
 
         // Trajectory collision check when not intentionally taking a door
-        if (!sanitizedMovement.targetCell) {
-            const collision = checkTrajectoryDoorCollision(
-                obs.currentCell,
-                obs.selfX,
-                obs.selfY,
-                safeX,
-                safeY,
-            );
-            if (collision) {
-                const safeT = Math.max(0, collision.hitT - 0.15);
-                sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
-                sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
-                sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
-            }
+        const collision = checkTrajectoryDoorCollision(
+            obs.currentCell,
+            obs.selfX,
+            obs.selfY,
+            safeX,
+            safeY,
+        );
+        if (collision) {
+            const safeT = Math.max(0, collision.hitT - 0.15);
+            sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
+            sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
+            sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
         }
     }
 

@@ -10,6 +10,7 @@ Trains a multi-head PyTorch neural network and exports pure weights to `src/ai/t
 """
 
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -79,11 +80,7 @@ def load_demonstrations(file_path: Path):
         print("Please play a match in Turu GUI while running `src/tools/record_match.ts` first!")
         sys.exit(1)
 
-    observations = []
-    combat_targets = []
-    move_targets = []
-    coord_targets = []
-
+    raw_records = []
     with open(file_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -94,56 +91,95 @@ def load_demonstrations(file_path: Path):
                 obs = rec.get("obsVector")
                 if obs is None or len(obs) != OBS_DIM:
                     continue
-
-                act_idx = rec.get("actionIndex", 0)
-                is_sprint = bool(rec.get("isSprint", False))
-                self_x = float(rec.get("selfX", 480.0))
-                self_y = float(rec.get("selfY", 400.0))
-
-                # Normalize target coordinates to [0, 1]
-                norm_x = min(1.0, max(0.0, self_x / 960.0))
-                norm_y = min(1.0, max(0.0, self_y / 550.0))
-
-                # Determine Atomic Combat Action:
-                # 0: NONE, 1: AA, 2: S1, 3: S2, 4: S3, 5: S4, 6: MANA_TAP
-                if act_idx == 3:
-                    combat_act = 2
-                elif act_idx == 4:
-                    combat_act = 3
-                elif act_idx == 5:
-                    combat_act = 4
-                elif act_idx == 6:
-                    combat_act = 5
-                elif act_idx == 10:
-                    combat_act = 6
-                elif act_idx == 0:
-                    combat_act = 1  # FIGHT_STAND -> auto-attack
-                elif obs[4] > 0.5:  # inCombat flag
-                    combat_act = 1
-                else:
-                    combat_act = 0
-
-                # Determine Atomic Movement Type:
-                # 0: STAND, 1: WALK, 2: SPRINT
-                if is_sprint or act_idx in [2, 8, 13]:
-                    move_type = 2
-                elif act_idx in [1, 7, 9, 11, 12]:
-                    move_type = 1
-                else:
-                    move_type = 0
-
-                observations.append(obs)
-                combat_targets.append(combat_act)
-                move_targets.append(move_type)
-                coord_targets.append([norm_x, norm_y])
+                raw_records.append(rec)
             except Exception:
                 continue
 
-    if len(observations) < 10:
-        print(f"[Warning] Only {len(observations)} samples found in {file_path}.")
+    if len(raw_records) < 10:
+        print(f"[Warning] Only {len(raw_records)} samples found in {file_path}.")
         sys.exit(1)
 
-    print(f"[Compound Imitation Learning] Loaded {len(observations)} frames from {file_path}.")
+    # Group into continuous cell segments to compute natural lookahead targets and movement velocity
+    segments = []
+    cur_seg = []
+    for r in raw_records:
+        if not cur_seg or cur_seg[-1].get("cell") == r.get("cell"):
+            cur_seg.append(r)
+        else:
+            segments.append(cur_seg)
+            cur_seg = [r]
+    if cur_seg:
+        segments.append(cur_seg)
+
+    observations = []
+    combat_targets = []
+    move_targets = []
+    coord_targets = []
+
+    for s in segments:
+        n = len(s)
+        for i in range(n):
+            r = s[i]
+            obs = r["obsVector"]
+            act_idx = r.get("actionIndex", 0)
+            act_name = r.get("actionName", "")
+
+            # 1. Determine Atomic Combat Action (decoupled from movement):
+            # 0: NONE, 1: AA, 2: S1, 3: S2, 4: S3, 5: S4, 6: MANA_TAP
+            if "SKILL_1" in act_name or act_idx == 3:
+                combat_act = 2
+            elif "SKILL_2" in act_name or act_idx == 4:
+                combat_act = 3
+            elif "SKILL_3" in act_name or act_idx == 5:
+                combat_act = 4
+            elif "SKILL_4" in act_name or act_idx == 6:
+                combat_act = 5
+            elif "MANA_TAP" in act_name or act_idx == 10:
+                combat_act = 6
+            elif obs[4] > 0.5:  # inCombat flag
+                combat_act = 1  # AUTO_ATTACK
+            else:
+                combat_act = 0  # NONE
+
+            # 2. Determine Movement Type based on true displacement & sprint status:
+            next_idx = min(n - 1, i + 1)
+            dx = float(s[next_idx].get("selfX", r.get("selfX", 0))) - float(r.get("selfX", 0))
+            dy = float(s[next_idx].get("selfY", r.get("selfY", 0))) - float(r.get("selfY", 0))
+            step_dist = math.hypot(dx, dy)
+
+            is_moving = step_dist > 2.5
+            is_sprint = bool(r.get("isSprint", False)) or step_dist > 12.0
+
+            if is_sprint and is_moving:
+                move_type = 2  # SPRINT
+            elif is_moving:
+                move_type = 1  # WALK
+            else:
+                move_type = 0  # STAND
+
+            # 3. Determine Target Coordinates:
+            # If moving, target is the lookahead destination (5 frames / 0.5s into future)
+            # If standing, target is current position
+            if is_moving:
+                lookahead_idx = min(n - 1, i + 5)
+                target_x = float(s[lookahead_idx].get("selfX", r.get("selfX", 480.0)))
+                target_y = float(s[lookahead_idx].get("selfY", r.get("selfY", 400.0)))
+            else:
+                target_x = float(r.get("selfX", 480.0))
+                target_y = float(r.get("selfY", 400.0))
+
+            # Normalize target coordinates to [0, 1]
+            norm_x = min(1.0, max(0.0, target_x / 960.0))
+            norm_y = min(1.0, max(0.0, target_y / 550.0))
+
+            observations.append(obs)
+            combat_targets.append(combat_act)
+            move_targets.append(move_type)
+            coord_targets.append([norm_x, norm_y])
+
+    print(
+        f"[Compound Imitation Learning] Loaded {len(observations)} frames across {len(segments)} segments from {file_path}."
+    )
     return (
         np.array(observations, dtype=np.float32),
         np.array(combat_targets, dtype=np.int64),

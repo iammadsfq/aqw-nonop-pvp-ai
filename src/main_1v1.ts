@@ -42,7 +42,7 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
         obs.currentCell === lastWalkCell && Math.hypot(x - lastWalkX, y - lastWalkY) <= 25;
 
     // Throttle walkTo calls so Flash's mvTimer and onEnterFrameWalk are not reset every 100ms!
-    if (sameTarget && isMoving && now - lastWalkTime < 650) {
+    if (sameTarget && isMoving && now - lastWalkTime < 300) {
         return false;
     }
 
@@ -114,6 +114,13 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             movement.targetY,
             isDoor ? false : isSprint,
         );
+    } else {
+        // If STAND was commanded and avatar is currently walking, stop cleanly
+        if (bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove")) {
+            try {
+                bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
+            } catch (_) {}
+        }
     }
 
     // 3. Simultaneous Combat Execution:

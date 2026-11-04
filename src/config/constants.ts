@@ -782,30 +782,13 @@ export function getDoorAimCoordinates(
 ): { x: number; y: number } {
     const width = door.xMax - door.xMin;
     if (width >= 250) {
-        // Wide door trigger area: enter through the nearest point along its width
+        // Wide door trigger area (e.g. Top -> Mid bottom edge): enter through nearest point along its width
         const clampedX = Math.round(Math.max(door.xMin + 30, Math.min(door.xMax - 30, currentX)));
         return { x: clampedX, y: door.aimY };
     }
 
-    // For standard doors, aim just past the entry threshold to avoid overshooting across the next screen!
-    let targetX = door.aimX;
-    let targetY = door.aimY;
-
-    if (door.xMin >= 650) {
-        // Right-side door (xMin ~ 735..750): aim at threshold (xMin + 20) instead of far edge (855+)
-        targetX = Math.round(door.xMin + 20);
-    } else if (door.xMax <= 300) {
-        // Left-side door (xMax ~ 225..235): aim at threshold (xMax - 20) instead of far edge (120)
-        targetX = Math.round(door.xMax - 20);
-    }
-
-    if (door.yMin >= 420) {
-        targetY = Math.round(door.yMin + 20);
-    } else if (door.yMax <= 320 && door.yMin >= 200) {
-        targetY = Math.round(door.yMax - 15);
-    }
-
-    return { x: targetX, y: targetY };
+    // For standard doors, return calibrated aim coordinates squarely inside door hit area
+    return { x: door.aimX, y: door.aimY };
 }
 
 /**
