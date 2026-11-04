@@ -122,30 +122,13 @@ export function extractObservation(
         }
     }
 
-    // If an alive opponent is in the same cell and we do not currently have them targeted
-    // (Wait until we are outside Safezone), lock target onto the opponent player first so
-    // `world.myAvatar.target` is populated and `bot.skills.canUseSkill(1..4)` evaluates accurately.
     const inSafezone = BLUDRUT_SAFEZONE_CELLS.has(currentCell);
     const oppInCell = opponents.find((p) => p.cell === currentCell && p.alive);
 
-    let rawTargetType = bot.flash.get<string>("world.myAvatar.target.npcType");
-    let rawTargetPlayerName =
+    const rawTargetType = bot.flash.get<string>("world.myAvatar.target.npcType");
+    const rawTargetPlayerName =
         bot.flash.get<string>("world.myAvatar.target.objData.strUsername") ??
         bot.flash.get<string>("world.myAvatar.target.pnm");
-
-    if (
-        !inSafezone &&
-        oppInCell &&
-        (rawTargetType !== "player" ||
-            !rawTargetPlayerName ||
-            rawTargetPlayerName.toLowerCase() !== oppInCell.username.toLowerCase())
-    ) {
-        bot.combat.attackPlayer(oppInCell.username);
-        rawTargetType = bot.flash.get<string>("world.myAvatar.target.npcType");
-        rawTargetPlayerName =
-            bot.flash.get<string>("world.myAvatar.target.objData.strUsername") ??
-            bot.flash.get<string>("world.myAvatar.target.pnm");
-    }
 
     const isPlayerTarget = rawTargetType === "player" && Boolean(rawTargetPlayerName);
     const monsterTarget = bot.player.target;
