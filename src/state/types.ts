@@ -86,12 +86,7 @@ export type AtomicCombatAction =
     | "USE_SKILL_1"
     | "USE_SKILL_2"
     | "USE_SKILL_3"
-    | "USE_SKILL_4"
-    | "MANA_TAP_NPC"
-    | "REST_OUT_OF_COMBAT"
-    | "CANCEL_AUTO_ATTACK"
-    | "RETREAT_TO_SAFEZONE"
-    | "ADVANCE_TO_COMBAT_CELL";
+    | "USE_SKILL_4";
 
 export interface AtomicMovementDecision {
     type: AtomicMovementType;

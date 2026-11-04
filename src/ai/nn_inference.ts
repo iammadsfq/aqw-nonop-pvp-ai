@@ -148,7 +148,7 @@ export function inferBattleWarriorDecision(
             }
         }
         return {
-            combatAction: "REST_OUT_OF_COMBAT",
+            combatAction: "NONE",
             movement: { type: "STAND", targetX: Math.round(obs.selfX), targetY: Math.round(obs.selfY) },
             reason: "[AtomicPolicy] Resting in Safezone for full recovery.",
         };
@@ -228,7 +228,6 @@ export function inferBattleWarriorDecision(
         "USE_SKILL_2",
         "USE_SKILL_3",
         "USE_SKILL_4",
-        "MANA_TAP_NPC",
     ];
     const chosenCombatAction: AtomicCombatAction = combatActionMap[bestCombatIdx] ?? "AUTO_ATTACK";
 
@@ -269,8 +268,8 @@ export function inferBattleWarriorDecision(
             targetX,
             targetY,
         },
-        targetName: chosenCombatAction === "MANA_TAP_NPC" ? undefined : oppInCell.username,
-        npcMapId: chosenCombatAction === "MANA_TAP_NPC" && safeNpc ? safeNpc.mapId : undefined,
+        targetName: oppInCell ? oppInCell.username : undefined,
+        npcMapId: undefined,
         reason: `[AtomicPolicy] Combat: ${chosenCombatAction} | Move: ${chosenMoveType} -> (${targetX}, ${targetY})`,
     };
 }

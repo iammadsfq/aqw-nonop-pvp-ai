@@ -77,6 +77,13 @@ class ScreenSpec:
     doors: tuple[DoorTrigger, ...]
 
 
+L_XMIN, L_XMAX = 0.0, 90.0
+R_XMIN, R_XMAX = 870.0, 960.0
+Y_MIN, Y_MAX = 220.0, 510.0
+L_AIM, R_AIM = 45.0, 915.0
+Y_AIM = 350.0
+L_SPAWN, R_SPAWN = 180.0, 780.0
+
 # Complete 16-screen BludrutBrawl topology calibrated from `aqw_combat_telemetry.log`
 BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
     ScreenSpec(
@@ -87,7 +94,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="safezone",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale0C", "Left", 750, 960, 240, 420, 770, 275, 173, 342),
+            DoorTrigger("Morale0C", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -98,9 +105,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Enter0", "Right", 0, 220, 240, 400, 180, 275, 789, 354),
-            DoorTrigger("Morale0B", "Left", 750, 960, 240, 400, 770, 275, 191, 352),
-            DoorTrigger("Captain0", "Spawn", 400, 540, 220, 285, 465, 275, 468, 272),
+            DoorTrigger("Enter0", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Morale0B", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Captain0", "Spawn", 400.0, 540.0, 220.0, 275.0, 465.0, 260.0, 485.0, 420.0),
         ),
     ),
     ScreenSpec(
@@ -111,8 +118,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale0C", "Right", 0, 225, 240, 400, 205, 278, 787, 354),
-            DoorTrigger("Morale0A", "Left", 735, 960, 240, 400, 760, 285, 192, 349),
+            DoorTrigger("Morale0C", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Morale0A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -123,8 +130,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale0B", "Right", 0, 225, 240, 400, 205, 282, 787, 350),
-            DoorTrigger("Crosslower", "Left", 745, 960, 240, 400, 765, 278, 186, 350),
+            DoorTrigger("Morale0B", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Crosslower", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -135,7 +142,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="captain",
         npc_max_hp=15000.0,
         doors=(
-            DoorTrigger("Morale0C", "Top", 360, 580, 445, 530, 485, 460, 483, 472),
+            DoorTrigger("Morale0C", "Top", 360.0, 580.0, 450.0, 530.0, 485.0, 490.0, 465.0, 310.0),
         ),
     ),
     ScreenSpec(
@@ -146,7 +153,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource0A", "Left", 780, 960, 240, 400, 815, 280, 188, 351),
+            DoorTrigger("Resource0A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -157,8 +164,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource0B", "Right", 0, 235, 240, 400, 215, 275, 785, 350),
-            DoorTrigger("Crossupper", "Left", 755, 960, 240, 400, 775, 275, 192, 351),
+            DoorTrigger("Resource0B", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Crossupper", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -169,9 +176,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="mid",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale0A", "Right", 0, 230, 240, 400, 210, 285, 789, 349),
-            DoorTrigger("Morale1A", "Left", 745, 960, 240, 400, 765, 278, 186, 354),
-            DoorTrigger("Crossupper", "Bottom", 400, 530, 240, 305, 465, 280, 488, 429),
+            DoorTrigger("Morale0A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Morale1A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Crossupper", "Bottom", 400.0, 530.0, 220.0, 275.0, 465.0, 260.0, 485.0, 420.0),
         ),
     ),
     ScreenSpec(
@@ -182,9 +189,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="top",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Resource0A", "Right", 0, 230, 240, 400, 215, 300, 785, 350),
-            DoorTrigger("Resource1A", "Left", 745, 960, 240, 400, 770, 297, 185, 347),
-            DoorTrigger("Crosslower", "Middle", 120, 900, 450, 530, 485, 465, 490, 342),
+            DoorTrigger("Resource0A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Resource1A", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
+            DoorTrigger("Crosslower", "Middle", 360.0, 600.0, 450.0, 530.0, 485.0, 490.0, 465.0, 320.0),
         ),
     ),
     ScreenSpec(
@@ -195,8 +202,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Crossupper", "Right", 0, 185, 240, 400, 160, 295, 787, 351),
-            DoorTrigger("Resource1B", "Left", 745, 960, 240, 400, 770, 280, 188, 350),
+            DoorTrigger("Crossupper", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Resource1B", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -207,7 +214,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource1A", "Right", 0, 225, 240, 400, 205, 280, 785, 350),
+            DoorTrigger("Resource1A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -218,7 +225,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="captain",
         npc_max_hp=15000.0,
         doors=(
-            DoorTrigger("Morale1C", "Top", 360, 580, 445, 530, 410, 460, 409, 471),
+            DoorTrigger("Morale1C", "Top", 360.0, 580.0, 450.0, 530.0, 410.0, 490.0, 465.0, 310.0),
         ),
     ),
     ScreenSpec(
@@ -229,8 +236,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Crosslower", "Right", 0, 230, 240, 400, 210, 270, 787, 349),
-            DoorTrigger("Morale1B", "Left", 745, 960, 240, 400, 765, 280, 190, 350),
+            DoorTrigger("Crosslower", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Morale1B", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -241,8 +248,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale1A", "Right", 0, 230, 240, 400, 215, 288, 785, 350),
-            DoorTrigger("Morale1C", "Left", 745, 960, 240, 400, 760, 286, 190, 350),
+            DoorTrigger("Morale1A", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Morale1C", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -253,9 +260,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale1B", "Right", 0, 235, 240, 400, 220, 287, 785, 350),
-            DoorTrigger("Captain1", "Spawn", 390, 520, 220, 285, 430, 275, 437, 271),
-            DoorTrigger("Enter1", "Left", 750, 960, 240, 400, 775, 280, 185, 350),
+            DoorTrigger("Morale1B", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
+            DoorTrigger("Captain1", "Spawn", 400.0, 540.0, 220.0, 275.0, 465.0, 260.0, 410.0, 420.0),
+            DoorTrigger("Enter1", "Left", R_XMIN, R_XMAX, Y_MIN, Y_MAX, R_AIM, Y_AIM, L_SPAWN, Y_AIM),
         ),
     ),
     ScreenSpec(
@@ -266,7 +273,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="safezone",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale1C", "Right", 0, 220, 240, 420, 195, 280, 785, 350),
+            DoorTrigger("Morale1C", "Right", L_XMIN, L_XMAX, Y_MIN, Y_MAX, L_AIM, Y_AIM, R_SPAWN, Y_AIM),
         ),
     ),
 )
@@ -370,6 +377,7 @@ class FighterState:
     prepared_strike_rem: float = 0.0 # Prepared Strike (5s window)
     prepared_strike_stacks: int = 0  # Up to 2 auto-attacks guaranteed unavoidable crit
     on_guard_rem: float = 0.0        # On Guard (10s -50% incoming damage)
+    door_cooldown: float = 0.0       # Screen transition immunity to prevent instant ping-pong
 
     # Target state: "opponent", "npc", or "none"
     target_kind: str = "opponent"
@@ -458,6 +466,9 @@ class Bludrut1v1Env(gym.Env):
         self.npc_hp: dict[str, float] = {}
         self.step_count = 0
         self.wave_won = False
+        self.agent_sz_time: float = 0.0
+        self.agent_has_exited_sz: bool = False
+        self.agent_attempted_illegal_sz_entry: bool = False
 
     def _load_calibrated_spec(self) -> None:
         if SPEC_PATH.exists():
@@ -536,6 +547,9 @@ class Bludrut1v1Env(gym.Env):
             self.enemy = FighterState("Opponent", "red", c, 580.0, 360.0)
 
         self.npc_hp = {s.cell: s.npc_max_hp for s in BLUDRUT_SCREENS if s.npc_max_hp > 0}
+        self.agent_sz_time = 0.0
+        self.agent_has_exited_sz = (self.agent.cell not in ("Enter0", "Enter1"))
+        self.agent_attempted_illegal_sz_entry = False
 
         return self._get_obs(self.agent, self.enemy), {}
 
@@ -630,12 +644,14 @@ class Bludrut1v1Env(gym.Env):
                     can_enter_sz = True
 
                 if not can_enter_sz:
+                    if f == self.agent:
+                        self.agent_attempted_illegal_sz_entry = True
                     safe_t = max(0.0, hit_t - 0.15)
                     f.x = f.x + (nx - f.x) * safe_t
                     f.y = f.y + (ny - f.y) * safe_t
                     return False
 
-            if not allow_door:
+            if not allow_door or f.door_cooldown > 0.0:
                 # RuleShield clamp: stop right before the door trigger box
                 safe_t = max(0.0, hit_t - 0.15)
                 f.x = f.x + (nx - f.x) * safe_t
@@ -644,8 +660,9 @@ class Bludrut1v1Env(gym.Env):
 
             # Trigger door transition to target screen!
             f.cell = door.target_cell
-            f.x = door.spawn_x + float(self.rng.uniform(-8.0, 8.0))
-            f.y = door.spawn_y + float(self.rng.uniform(-6.0, 6.0))
+            f.x = door.spawn_x + float(self.rng.uniform(-6.0, 6.0))
+            f.y = door.spawn_y + float(self.rng.uniform(-4.0, 4.0))
+            f.door_cooldown = 1.0  # 1.0s cooldown before next door transition
             f.in_combat = False
             f.target_kind = "none"
             return True
@@ -749,7 +766,10 @@ class Bludrut1v1Env(gym.Env):
 
         elif action == 11:  # WALK_DOOR_FORWARD (toward opponent / enemy side)
             target_cell = opp.cell if not same_cell else ("Morale1A" if f.team == "blue" else "Morale0A")
-            self._step_toward_cell(f, target_cell, sprint=False)
+            sprint = f.sp >= 50.0
+            if sprint:
+                f.sp = max(0.0, f.sp - 5.0)
+            self._step_toward_cell(f, target_cell, sprint=sprint)
 
         elif action in (12, 13):  # WALK_DOOR_BACKWARD / SPRINT_DOOR_BACKWARD (retreat to adjacent screen for OOC regen)
             sprint = action == 13
@@ -869,17 +889,11 @@ class Bludrut1v1Env(gym.Env):
                 if disp < 2.0:
                     stall_penalty = 0.05 * (1.0 - disp / 16.0)
 
-        # 2. Execute Combat Action
-        if combat_act == 1:
+        # 2. Execute Atomic Combat Action (0=NONE, 1=AA, 2=S1, 3=S2, 4=S3, 5=S4)
+        if same_cell:
             f.target_kind = "opponent"
-        elif combat_act == 6:
-            screen = SCREEN_BY_CELL[f.cell]
-            npc_cur = self.npc_hp.get(f.cell, 0.0)
-            if screen.npc_max_hp > 0 and npc_cur >= 2000.0 and (npc_cur / screen.npc_max_hp) >= 0.35:
-                f.target_kind = "npc"
-            else:
-                f.target_kind = "opponent"
-        elif combat_act in (2, 3, 4, 5):
+
+        if combat_act in (2, 3, 4, 5):
             skill_idx = combat_act - 1  # 1=a1, 2=a2, 3=a3, 4=a4
             if f.cooldowns[skill_idx] <= 0.0 and f.mp >= self.skill_mp[skill_idx]:
                 if skill_idx == 3:
@@ -904,20 +918,7 @@ class Bludrut1v1Env(gym.Env):
 
         # Automatic Auto Attack when ready
         if f.cooldowns[0] <= 0.0 and f.stun_rem <= 0.0:
-            if f.target_kind == "npc":
-                screen = SCREEN_BY_CELL[f.cell]
-                npc_cur = self.npc_hp.get(f.cell, 0.0)
-                if screen.npc_max_hp > 0 and npc_cur >= 2000.0 and math.hypot(f.x - 480.0, f.y - 330.0) <= MELEE_RANGE:
-                    f.cooldowns[0] = self.skill_cds[0]
-                    f.in_combat = True
-                    f.time_since_last_combat_action = 0.0
-                    is_crit = float(self.rng.random()) < self.crit_chance
-                    npc_dmg = self.base_aa_damage * (self.crit_mult if is_crit else 1.0)
-                    self.npc_hp[f.cell] = max(1500.0, npc_cur - npc_dmg)
-                    f.mp = min(f.max_mp, f.mp + (AA_CRIT_MP_GAIN if is_crit else AA_HIT_MP_GAIN))
-                    f.hp = max(1.0, f.hp - 190.0 * (0.5 if f.on_guard_rem > 0 else 1.0))
-                    f.mp = min(f.max_mp, f.mp + ON_HIT_TAKEN_MP_GAIN)
-            elif same_cell and dist <= MELEE_RANGE:
+            if same_cell and dist <= MELEE_RANGE:
                 f.target_kind = "opponent"
                 f.cooldowns[0] = self.skill_cds[0]
                 f.in_combat = True
@@ -969,6 +970,7 @@ class Bludrut1v1Env(gym.Env):
         if f.prepared_strike_rem <= 0.0:
             f.prepared_strike_stacks = 0
         f.on_guard_rem = max(0.0, f.on_guard_rem - DT_SEC)
+        f.door_cooldown = max(0.0, f.door_cooldown - DT_SEC)
 
         f.time_since_last_combat_action += DT_SEC
         if f.in_combat and f.time_since_last_combat_action >= 4.5:
@@ -1079,7 +1081,29 @@ class Bludrut1v1Env(gym.Env):
         # 7. Step penalty (Time efficiency to encourage decisive win)
         r_time = -0.002
 
-        reward = r_ehp + r_mitigation + r_stun + r_nav + f_mana + f_stamina + r_time - pen_agent
+        # 8. Safezone Rules & Tournament Enforcement
+        # Rule A: Camping in Safezone > 15s violates match regulations: heavy escalating penalty
+        # Rule B: Re-entering or retreating into Safezone before opponent is eliminated is strictly illegal
+        r_sz = 0.0
+        if self.agent.cell in ("Enter0", "Enter1"):
+            self.agent_sz_time += DT_SEC
+            if self.agent_sz_time > 15.0:
+                overstay = self.agent_sz_time - 15.0
+                r_sz -= (0.50 + min(1.50, overstay * 0.1))
+
+            if self.agent_has_exited_sz and not self.wave_won:
+                r_sz -= 1.0  # Illegal presence in Safezone mid-fight
+        else:
+            if not self.agent_has_exited_sz:
+                self.agent_has_exited_sz = True
+                r_sz += 2.0  # Bonus for breaking out of Safezone to engage
+            self.agent_sz_time = 0.0
+
+        if self.agent_attempted_illegal_sz_entry:
+            r_sz -= 5.0  # Severe penalty for attempting illegal retreat into Safezone while enemy is alive
+            self.agent_attempted_illegal_sz_entry = False
+
+        reward = r_ehp + r_mitigation + r_stun + r_nav + f_mana + f_stamina + r_time + r_sz - pen_agent
 
         terminated = False
         truncated = False

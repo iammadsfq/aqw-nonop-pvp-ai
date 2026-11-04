@@ -45,7 +45,7 @@ from visualizer_server import (
 TS_WEIGHTS_PATH = ROOT_DIR / "src" / "ai" / "trained_policy_weights.ts"
 CHECKPOINT_PATH = Path(__file__).resolve().parent / "data" / "ppo_compound_policy.pt"
 
-NUM_COMBAT_ACTIONS = 7  # NONE, AUTO_ATTACK, S1, S2, S3, S4, MANA_TAP_NPC
+NUM_COMBAT_ACTIONS = 6  # NONE, AUTO_ATTACK, USE_SKILL_1, USE_SKILL_2, USE_SKILL_3, USE_SKILL_4
 NUM_MOVE_TYPES = 3       # STAND, WALK, SPRINT
 COORD_DIM = 2            # norm_x, norm_y
 
@@ -56,7 +56,6 @@ COMBAT_ACTION_NAMES = [
     "USE_SKILL_2",
     "USE_SKILL_3",
     "USE_SKILL_4",
-    "MANA_TAP_NPC",
 ]
 
 MOVE_TYPE_NAMES = [
@@ -182,7 +181,6 @@ def compute_masks(obs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     s2_ready = obs[11] > 0.5
     s3_ready = obs[12] > 0.5
     s4_ready = obs[13] > 0.5
-    has_safe_npc = obs[25] > 0.0
     can_sprint = obs[3] > 0.5
     stunned = obs[19] > 0.5
 
@@ -199,8 +197,6 @@ def compute_masks(obs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         combat_mask[4] = False
     if not s4_ready:
         combat_mask[5] = False
-    if not has_safe_npc:
-        combat_mask[6] = False
 
     # Move masks:
     if not can_sprint:
@@ -235,8 +231,10 @@ def load_pretrained_imitation_weights(model: CompoundActorCritic, ts_path: Path)
             model.fc1.bias.copy_(torch.tensor(data["b1"], dtype=torch.float32))
             model.fc2.weight.copy_(torch.tensor(data["w2"], dtype=torch.float32))
             model.fc2.bias.copy_(torch.tensor(data["b2"], dtype=torch.float32))
-            model.combat_head.weight.copy_(torch.tensor(data["wCombat"], dtype=torch.float32))
-            model.combat_head.bias.copy_(torch.tensor(data["bCombat"], dtype=torch.float32))
+            w_c = torch.tensor(data["wCombat"][:NUM_COMBAT_ACTIONS], dtype=torch.float32)
+            b_c = torch.tensor(data["bCombat"][:NUM_COMBAT_ACTIONS], dtype=torch.float32)
+            model.combat_head.weight.copy_(w_c)
+            model.combat_head.bias.copy_(b_c)
             model.move_type_head.weight.copy_(torch.tensor(data["wMoveType"], dtype=torch.float32))
             model.move_type_head.bias.copy_(torch.tensor(data["bMoveType"], dtype=torch.float32))
             model.coord_head.weight.copy_(torch.tensor(data["wCoord"], dtype=torch.float32))
@@ -279,7 +277,6 @@ def export_compound_weights_to_ts(
             "USE_SKILL_2",
             "USE_SKILL_3",
             "USE_SKILL_4",
-            "MANA_TAP_NPC",
         ],
         "moveTypes": [
             "STAND",
@@ -306,7 +303,7 @@ def export_compound_weights_to_ts(
  *
  * Architecture:
  * - Shared Backbone: 26 -> 64 (tanh) -> 64 (tanh)
- * - Head 1 (Combat Action, 7 classes): NONE, AUTO_ATTACK, SKILL_1..4, MANA_TAP_NPC
+ * - Head 1 (Combat Action, 6 classes): NONE, AUTO_ATTACK, SKILL_1..4
  * - Head 2 (Movement Type, 3 classes): STAND, WALK, SPRINT
  * - Head 3 (Target Point Regression, 2 coords): Normalized (X/960, Y/550) via Sigmoid
  *
@@ -406,28 +403,36 @@ def evaluate_and_record_match(
                 dmg_to_opp = max(0.0, prev_opp_hp - env.enemy.hp)
                 dmg_to_ag = max(0.0, prev_ag_hp - env.agent.hp)
 
-                log_msg = ""
-                if prev_agent_cell != env.agent.cell:
-                    alias = SCREEN_BY_CELL[env.agent.cell].alias if env.agent.cell in SCREEN_BY_CELL else env.agent.cell
-                    log_msg = f"🚪 Blue crossed door into {env.agent.cell} ({alias})"
-                elif prev_enemy_cell != env.enemy.cell:
-                    alias = SCREEN_BY_CELL[env.enemy.cell].alias if env.enemy.cell in SCREEN_BY_CELL else env.enemy.cell
-                    log_msg = f"🚪 Red crossed door into {env.enemy.cell} ({alias})"
-                elif c_act.item() == 2:
-                    log_msg = f"Blue CAST Decisive Strike (S1) -> dealt {dmg_to_opp:.0f} dmg"
-                elif c_act.item() == 3:
-                    log_msg = f"Blue CAST Imbalancing Strike (S2 Stun 4s) -> Opponent STUNNED!"
-                elif c_act.item() == 4:
-                    log_msg = f"Blue CAST Prepared Strike (S3) -> Crit buff activated"
-                elif c_act.item() == 5:
-                    log_msg = f"Blue CAST On Guard (S4 Shield) -> -50% Barrier activated!"
-                elif c_act.item() == 1 and dmg_to_opp > 0:
-                    log_msg = f"Blue AUTO ATTACK -> dealt {dmg_to_opp:.0f} dmg"
-                elif dmg_to_ag > 0:
-                    log_msg = f"Red attacked Blue -> dealt {dmg_to_ag:.0f} dmg"
-
                 agent_alias = SCREEN_BY_CELL[env.agent.cell].alias if env.agent.cell in SCREEN_BY_CELL else env.agent.cell
                 enemy_alias = SCREEN_BY_CELL[env.enemy.cell].alias if env.enemy.cell in SCREEN_BY_CELL else env.enemy.cell
+
+                log_msg = ""
+                logs = []
+                if env.agent_attempted_illegal_sz_entry:
+                    logs.append("⛔ Blue retreat into Safezone blocked (-5.0 PENALTY)")
+                if prev_agent_cell in ("Enter0", "Enter1") and env.agent.cell not in ("Enter0", "Enter1"):
+                    logs.append(f"🚪 Blue exited Safezone into {env.agent.cell} ({agent_alias}) (+2.0 BONUS)")
+                elif prev_agent_cell != env.agent.cell:
+                    logs.append(f"🚪 Blue crossed door into {env.agent.cell} ({agent_alias})")
+
+                if prev_enemy_cell != env.enemy.cell:
+                    logs.append(f"🚪 Red crossed door into {env.enemy.cell} ({enemy_alias})")
+
+                if c_act.item() == 2:
+                    logs.append(f"⚔️ Blue CAST S1 (Decisive) -> {dmg_to_opp:.0f} dmg")
+                elif c_act.item() == 3:
+                    logs.append(f"⚡ Blue CAST S2 (Stun 4s) -> Opponent STUNNED!")
+                elif c_act.item() == 4:
+                    logs.append(f"🔥 Blue CAST S3 (Prepared) -> Crit buff activated")
+                elif c_act.item() == 5:
+                    logs.append(f"🛡️ Blue CAST S4 (On Guard) -> -50% Barrier activated!")
+                elif dmg_to_opp > 0:
+                    logs.append(f"⚔️ Blue hit Red -> dealt {dmg_to_opp:.0f} dmg")
+
+                if dmg_to_ag > 0:
+                    logs.append(f"💥 Red hit Blue -> dealt {dmg_to_ag:.0f} dmg")
+
+                log_msg = " | ".join(logs)
 
                 match_frames.append({
                     "t": round(step_idx * 0.1, 2),

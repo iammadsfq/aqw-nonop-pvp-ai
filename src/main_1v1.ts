@@ -96,11 +96,9 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
                 ? "USE_SKILL_3"
                 : decision.action === "USE_SKILL_4"
                   ? "USE_SKILL_4"
-                  : decision.action === "MANA_TAP_NPC"
-                    ? "MANA_TAP_NPC"
-                    : decision.action === "TARGET_OPPONENT"
-                      ? "AUTO_ATTACK"
-                      : "NONE");
+                  : decision.action === "TARGET_OPPONENT"
+                    ? "AUTO_ATTACK"
+                    : "NONE");
 
     // 2. Simultaneous Movement Execution:
     // Walks or Sprints to target ground coordinates (X, Y)
@@ -144,28 +142,6 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             break;
         case "USE_SKILL_4":
             bot.skills.useSkill(4);
-            break;
-        case "MANA_TAP_NPC":
-            if (decision.npcMapId !== undefined) {
-                bot.combat.attack(decision.npcMapId);
-            }
-            break;
-        case "REST_OUT_OF_COMBAT":
-            if (!obs.selfInCombat) {
-                bot.player.rest(false);
-            }
-            break;
-        case "CANCEL_AUTO_ATTACK":
-            bot.combat.cancelAutoAttack();
-            bot.combat.cancelTarget();
-            break;
-        case "RETREAT_TO_SAFEZONE":
-            bot.combat.cancelAutoAttack();
-            bot.combat.cancelTarget();
-            bot.map.jump(safezoneCell, "Spawn");
-            break;
-        case "ADVANCE_TO_COMBAT_CELL":
-            bot.map.jump(combatCell, "Left");
             break;
     }
 

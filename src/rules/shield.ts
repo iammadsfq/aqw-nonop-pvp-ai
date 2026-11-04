@@ -79,11 +79,9 @@ export function applyRuleShield(
                 ? "USE_SKILL_3"
                 : decision.action === "USE_SKILL_4"
                   ? "USE_SKILL_4"
-                  : decision.action === "MANA_TAP_NPC"
-                    ? "MANA_TAP_NPC"
-                    : decision.action === "TARGET_OPPONENT"
-                      ? "AUTO_ATTACK"
-                      : "NONE");
+                  : decision.action === "TARGET_OPPONENT"
+                    ? "AUTO_ATTACK"
+                    : "NONE");
 
     let sanitizedMovement: AtomicMovementDecision = decision.movement
         ? { ...decision.movement }
@@ -115,14 +113,6 @@ export function applyRuleShield(
         }
     }
 
-    // 2. Hard Rule: Mana-Tap NPC is only allowed if a safe high-HP NPC exists
-    if (sanitizedCombat === "MANA_TAP_NPC") {
-        const safeNpc = findSafeManaTapNpc(obs);
-        if (!safeNpc) {
-            sanitizedCombat = "CANCEL_AUTO_ATTACK";
-            sanitizedReason += " [RuleShield: blocked NPC mana tap - HP too low]";
-        }
-    }
 
     // 3. Stun Guard: Hard-lock all movement while stunned, off-balance, or immobilized
     if (obs.selfStunned) {
