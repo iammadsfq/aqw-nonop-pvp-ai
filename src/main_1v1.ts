@@ -395,7 +395,7 @@ export default function main(): void {
             continue;
         }
 
-        const obs = extractObservation(allyNames, wave);
+        const obs = extractObservation(allyNames, wave, isRedTeam ? "red" : "blue");
 
         // Anti-Roofing Safeguard: If avatar is caught on ceiling rafters (y < 260) or off-screen bottom (y > 480)
         if (bot.player.y < 260 || bot.player.y > 480) {

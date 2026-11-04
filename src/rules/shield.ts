@@ -130,6 +130,8 @@ export function applyRuleShield(
         !obs.wave.canReturnToSafezone
     ) {
         sanitizedMovement.type = "STAND";
+        sanitizedMovement.targetCell = undefined;
+        sanitizedMovement.targetPad = undefined;
         sanitizedReason += " [RuleShield: blocked illegal mid-wave safezone jump]";
     }
 
@@ -178,6 +180,12 @@ export function applyRuleShield(
                 sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
                 sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
                 sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
+            } else if (BLUDRUT_SAFEZONE_CELLS.has(collision.door.targetCell) && !obs.inSafezone && !obs.wave.canReturnToSafezone) {
+                // Illegal safezone entry mid-match: clamp before door
+                const safeT = Math.max(0, collision.hitT - 0.15);
+                sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
+                sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
+                sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias} (safezone locked)]`;
             } else {
                 // Out of combat / roaming: snap cleanly to the door trigger aim coordinates!
                 sanitizedMovement.targetX = collision.door.aimX;

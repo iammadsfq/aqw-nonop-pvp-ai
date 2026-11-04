@@ -38,6 +38,7 @@ export interface CombatObservation {
     currentCell: string;
     currentPad: string;
     inSafezone: boolean;
+    selfTeam?: "blue" | "red";
 
     // Self state
     selfName: string;

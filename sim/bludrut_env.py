@@ -346,7 +346,8 @@ def check_trajectory_door_collision(
         t_min = 0.0
         t_max = 1.0
         p = (-dx, dx, -dy, dy)
-        q = (x0 - door.x_min, door.x_max - x0, y0 - door.y_min, door.y_max - y0)
+        eff_y_max = max(door.y_max, 420.0) if (door.x_min == 0.0 or door.x_max >= 950.0) else door.y_max
+        q = (x0 - door.x_min, door.x_max - x0, y0 - door.y_min, eff_y_max - y0)
         intersects = True
 
         for pi, qi in zip(p, q):
@@ -559,21 +560,24 @@ class Bludrut1v1Env(gym.Env):
         self.last_opp_action = 0
 
         # Curriculum / Full-Map Spawn Distribution across all 16 screens:
-        # 40%: Standard Match Flow (Enter0 vs Enter1 safezones)
-        # 25%: Main Corridor clashes (Morale0A..0C, Morale1A..1C, Crosslower)
-        # 15%: Upper Bridge Top & Restorer rooms (Crossupper, Resource0A/B, Resource1A/B)
-        # 10%: Captain room sieges (Captain0, Captain1)
-        # 10%: Inter-floor chases (e.g. Crosslower vs Crossupper, Morale0C vs Captain0)
+        # Symmetrically sample agent team: 50% Blue, 50% Red
+        agent_team = "blue" if self.rng.random() < 0.5 else "red"
+        enemy_team = "red" if agent_team == "blue" else "blue"
+        sz_agent = "Enter0" if agent_team == "blue" else "Enter1"
+        sz_enemy = "Enter1" if agent_team == "blue" else "Enter0"
+        sz_agent_x = 350.0 if agent_team == "blue" else 600.0
+        sz_enemy_x = 600.0 if agent_team == "blue" else 350.0
+
         spawn_type = float(self.rng.random())
-        if spawn_type < 0.40:
+        if spawn_type < 0.35:
             self.agent = FighterState(
-                "Uma", "blue", "Enter0",
-                350.0 + float(self.rng.uniform(-30, 30)),
+                "Uma", agent_team, sz_agent,
+                sz_agent_x + float(self.rng.uniform(-30, 30)),
                 360.0 + float(self.rng.uniform(-20, 20))
             )
             self.enemy = FighterState(
-                "Opponent", "red", "Enter1",
-                600.0 + float(self.rng.uniform(-30, 30)),
+                "Opponent", enemy_team, sz_enemy,
+                sz_enemy_x + float(self.rng.uniform(-30, 30)),
                 360.0 + float(self.rng.uniform(-20, 20))
             )
         elif spawn_type < 0.65:
@@ -584,23 +588,23 @@ class Bludrut1v1Env(gym.Env):
             ay = float(self.rng.uniform(300.0, 420.0))
             ex = float(self.rng.uniform(540.0, 720.0))
             ey = float(self.rng.uniform(300.0, 420.0))
-            self.agent = FighterState("Uma", "blue", c_agent, ax, ay)
-            self.enemy = FighterState("Opponent", "red", c_opp, ex, ey)
+            self.agent = FighterState("Uma", agent_team, c_agent, ax, ay)
+            self.enemy = FighterState("Opponent", enemy_team, c_opp, ex, ey)
         elif spawn_type < 0.80:
             upper_rooms = ["Resource0B", "Resource0A", "Crossupper", "Resource1A", "Resource1B"]
             c_agent = str(self.rng.choice(upper_rooms))
             c_opp = c_agent if self.rng.random() < 0.5 else str(self.rng.choice(upper_rooms))
-            self.agent = FighterState("Uma", "blue", c_agent, float(self.rng.uniform(240.0, 420.0)), float(self.rng.uniform(300.0, 400.0)))
-            self.enemy = FighterState("Opponent", "red", c_opp, float(self.rng.uniform(540.0, 720.0)), float(self.rng.uniform(300.0, 400.0)))
+            self.agent = FighterState("Uma", agent_team, c_agent, float(self.rng.uniform(240.0, 420.0)), float(self.rng.uniform(300.0, 400.0)))
+            self.enemy = FighterState("Opponent", enemy_team, c_opp, float(self.rng.uniform(540.0, 720.0)), float(self.rng.uniform(300.0, 400.0)))
         elif spawn_type < 0.90:
             c = str(self.rng.choice(["Captain0", "Captain1"]))
-            self.agent = FighterState("Uma", "blue", c, 380.0, 360.0)
-            self.enemy = FighterState("Opponent", "red", c, 580.0, 360.0)
+            self.agent = FighterState("Uma", agent_team, c, 380.0, 360.0)
+            self.enemy = FighterState("Opponent", enemy_team, c, 580.0, 360.0)
         else:
             pairs = [("Crosslower", "Crossupper"), ("Crossupper", "Crosslower"), ("Morale0C", "Captain0"), ("Morale1C", "Captain1")]
             c_ag, c_en = self.rng.choice(pairs)
-            self.agent = FighterState("Uma", "blue", str(c_ag), 480.0, 360.0)
-            self.enemy = FighterState("Opponent", "red", str(c_en), 480.0, 360.0)
+            self.agent = FighterState("Uma", agent_team, str(c_ag), 480.0, 360.0)
+            self.enemy = FighterState("Opponent", enemy_team, str(c_en), 480.0, 360.0)
 
         self.npc_hp = {s.cell: s.npc_max_hp for s in BLUDRUT_SCREENS if s.npc_max_hp > 0}
         self.agent_sz_time = 0.0
@@ -627,7 +631,20 @@ class Bludrut1v1Env(gym.Env):
         npc_max = me_screen.npc_max_hp
         has_safe_npc = 1.0 if (npc_max > 0 and npc_cur_hp >= 2000.0 and (npc_cur_hp / npc_max) >= 0.35) else 0.0
 
-        target_nav_cell = opp.cell if (opp.cell == "Crosslower" or opp.cell.startswith("Morale1")) else "Crosslower"
+        # Strategic Navigation Objective (Symmetric for Blue & Red):
+        own_sz = "Enter0" if me.team == "blue" else "Enter1"
+        own_restorer = "Resource0A" if me.team == "blue" else "Resource1A"
+        opp_in_arena = (opp.cell not in ("Enter0", "Enter1", "Wait") and opp.hp > 0.0)
+
+        if self.wave_won:
+            target_nav_cell = own_sz
+        elif (me.hp / me.max_hp) < 0.30 and not same_cell:
+            target_nav_cell = own_restorer
+        elif opp_in_arena:
+            target_nav_cell = opp.cell
+        else:
+            target_nav_cell = "Crosslower"
+
         next_door = find_door_toward_cell(me.cell, target_nav_cell) if not same_cell else None
 
         if same_cell:
@@ -1093,10 +1110,11 @@ class Bludrut1v1Env(gym.Env):
             obs = self._get_obs(opp, ag)
             return int(self.opponent_policy(obs))
 
-        # 1. Post-Kill Behavior: Walk back to Safezone (Enter1) and rest until full
+        # 1. Post-Kill Behavior: Walk back to own Safezone and rest until full
+        opp_sz = "Enter1" if opp.team == "red" else "Enter0"
         if self.enemy_returning_to_sz:
-            if opp.cell != "Enter1":
-                self._step_toward_cell(opp, "Enter1", sprint=False)
+            if opp.cell != opp_sz:
+                self._step_toward_cell(opp, opp_sz, sprint=False)
                 return 0
             else:
                 # Inside Safezone: Rest until 100% full HP and MP
@@ -1108,24 +1126,24 @@ class Bludrut1v1Env(gym.Env):
         dist = math.hypot(opp.x - ag.x, opp.y - ag.y) if same_cell else 9999.0
 
         # 2. Inter-screen Navigation & Mid Control:
-        # Competitive meta: Red does NOT blindly hunt Blue deep into Blue's B2/B3/SZ!
-        # Red controls Mid (Crosslower) and holds position near the B1 door (x=260, y=350) ready to engage.
         if not same_cell:
-            red_territory = ("Morale1A", "Morale1B", "Morale1C", "Resource1A", "Resource1B", "Captain1")
-            # If Blue invaded Red's territory, intercept and defend!
-            if ag.cell in red_territory:
+            opp_territory = (
+                ("Morale1A", "Morale1B", "Morale1C", "Resource1A", "Resource1B", "Captain1")
+                if opp.team == "red"
+                else ("Morale0A", "Morale0B", "Morale0C", "Resource0A", "Resource0B", "Captain0")
+            )
+            # If agent invaded opponent's territory, intercept and defend!
+            if ag.cell in opp_territory:
                 self._step_toward_cell(opp, ag.cell, sprint=False)
                 return 0
 
-            # If Red is not yet in Mid (Crosslower), advance forward toward Mid
+            # If opponent is not yet in Mid (Crosslower), advance forward toward Mid
             if opp.cell != "Crosslower":
                 self._step_toward_cell(opp, "Crosslower", sprint=False)
                 return 0
 
-            # Red is in Mid (Crosslower)!
-            # Blue is in Blue's territory (Morale0A, Morale0B, Morale0C, Enter0) or Top.
-            # Red holds position near the B1 door threshold (x=260, y=350) watching the entrance.
-            target_hold_x, target_hold_y = 260.0, 350.0
+            # In Mid (Crosslower): hold position near opponent corridor entrance
+            target_hold_x, target_hold_y = (260.0, 350.0) if opp.team == "red" else (700.0, 350.0)
             dist_to_hold = math.hypot(opp.x - target_hold_x, opp.y - target_hold_y)
             if dist_to_hold > 30.0:
                 self._move_fighter(opp, target_hold_x, target_hold_y, sprint=False, allow_door=False)
@@ -1342,6 +1360,11 @@ class Bludrut1v1Env(gym.Env):
 
         # Check deaths & respawns (Target: 10 Kills)
         self.last_kill_event = ""
+        agent_sz = "Enter0" if self.agent.team == "blue" else "Enter1"
+        enemy_sz = "Enter1" if self.agent.team == "blue" else "Enter0"
+        agent_sz_x = 350.0 if self.agent.team == "blue" else 600.0
+        enemy_sz_x = 600.0 if self.agent.team == "blue" else 350.0
+
         if self.enemy.hp <= 0.0 and self.agent.hp <= 0.0:
             self.blue_kills += 1
             self.red_kills += 1
@@ -1349,46 +1372,55 @@ class Bludrut1v1Env(gym.Env):
             reward += 5.0
             if self.blue_kills >= self.target_kills or self.red_kills >= self.target_kills:
                 terminated = True
-                info["winner"] = "draw" if self.blue_kills == self.red_kills else ("agent" if self.blue_kills > self.red_kills else "enemy")
+                ag_score = self.blue_kills if self.agent.team == "blue" else self.red_kills
+                en_score = self.red_kills if self.agent.team == "blue" else self.blue_kills
+                info["winner"] = "draw" if ag_score == en_score else ("agent" if ag_score > en_score else "enemy")
             else:
-                self._respawn_fighter(self.agent, "Enter0", 350.0, 360.0)
-                self._respawn_fighter(self.enemy, "Enter1", 600.0, 360.0)
+                self._respawn_fighter(self.agent, agent_sz, agent_sz_x, 360.0)
+                self._respawn_fighter(self.enemy, enemy_sz, enemy_sz_x, 360.0)
                 self.agent_has_exited_sz = False
                 self.agent_sz_time = 0.0
                 self.wave_won = True
                 self.enemy_returning_to_sz = False
 
         elif self.enemy.hp <= 0.0:
-            self.blue_kills += 1
-            self.last_kill_event = f"🏆 BLUE ELIMINATED RED! Score: Blue {self.blue_kills} - {self.red_kills} Red"
+            if self.agent.team == "blue":
+                self.blue_kills += 1
+            else:
+                self.red_kills += 1
+            self.last_kill_event = f"🏆 {self.agent.team.upper()} ELIMINATED {self.enemy.team.upper()}! Score: Blue {self.blue_kills} - {self.red_kills} Red"
             reward += 10.0 + 5.0 * (self.agent.hp / self.agent.max_hp)
             self.wave_won = True
-            if self.blue_kills >= self.target_kills:
+            ag_score = self.blue_kills if self.agent.team == "blue" else self.red_kills
+            if ag_score >= self.target_kills:
                 terminated = True
                 info["winner"] = "agent"
             else:
-                # Enemy respawns in Red Safezone (Enter1)
-                self._respawn_fighter(self.enemy, "Enter1", 600.0, 360.0)
+                self._respawn_fighter(self.enemy, enemy_sz, enemy_sz_x, 360.0)
                 self.enemy_returning_to_sz = False
 
         elif self.agent.hp <= 0.0:
-            self.red_kills += 1
-            self.last_kill_event = f"💀 RED ELIMINATED BLUE! Score: Blue {self.blue_kills} - {self.red_kills} Red"
+            if self.enemy.team == "blue":
+                self.blue_kills += 1
+            else:
+                self.red_kills += 1
+            self.last_kill_event = f"💀 {self.enemy.team.upper()} ELIMINATED {self.agent.team.upper()}! Score: Blue {self.blue_kills} - {self.red_kills} Red"
             reward -= 10.0
-            if self.red_kills >= self.target_kills:
+            en_score = self.blue_kills if self.enemy.team == "blue" else self.red_kills
+            if en_score >= self.target_kills:
                 terminated = True
                 info["winner"] = "enemy"
             else:
-                # Agent respawns in Blue Safezone (Enter0)
-                self._respawn_fighter(self.agent, "Enter0", 350.0, 360.0)
+                self._respawn_fighter(self.agent, agent_sz, agent_sz_x, 360.0)
                 self.agent_has_exited_sz = False
                 self.agent_sz_time = 0.0
-                # Red scored kill -> initiates walk back to safezone to rest!
                 self.enemy_returning_to_sz = True
 
         elif self.step_count >= self.max_steps:
             truncated = True
-            info["winner"] = "agent" if self.blue_kills > self.red_kills else ("enemy" if self.red_kills > self.blue_kills else "draw")
+            ag_score = self.blue_kills if self.agent.team == "blue" else self.red_kills
+            en_score = self.red_kills if self.agent.team == "blue" else self.blue_kills
+            info["winner"] = "agent" if ag_score > en_score else ("enemy" if en_score > ag_score else "draw")
 
         info["blue_kills"] = self.blue_kills
         info["red_kills"] = self.red_kills

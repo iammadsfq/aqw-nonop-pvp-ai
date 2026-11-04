@@ -106,6 +106,7 @@ function checkSelfStunned(): boolean {
 export function extractObservation(
     allyNames: ReadonlySet<string>,
     wave: WaveTrackerState,
+    selfTeam?: "blue" | "red",
 ): CombatObservation {
     const selfName = bot.player.username;
     const selfMaxHp = Math.max(1, bot.player.maxHealth);
@@ -154,6 +155,13 @@ export function extractObservation(
         bot.flash.get<string>("world.myAvatar.target.objData.strUsername") ??
         bot.flash.get<string>("world.myAvatar.target.pnm");
 
+    const rawPvpTeam =
+        bot.flash.get<number>("world.myAvatar.objData.pvpTeam") ??
+        bot.flash.get<number>("world.myAvatar.pvpTeam");
+    const detectedTeam: "blue" | "red" =
+        selfTeam ??
+        (rawPvpTeam === 1 ? "red" : (rawPvpTeam === 0 ? "blue" : (currentCell.includes("1") ? "red" : "blue")));
+
     const isPlayerTarget = rawTargetType === "player" && Boolean(rawTargetPlayerName);
     const monsterTarget = bot.player.target;
     const hasTarget = isPlayerTarget || bot.player.hasTarget;
@@ -166,6 +174,7 @@ export function extractObservation(
         currentCell,
         currentPad,
         inSafezone,
+        selfTeam: detectedTeam,
 
         selfName,
         selfClass: bot.player.currentClass ?? "Unknown",

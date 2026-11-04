@@ -816,8 +816,9 @@ export function checkTrajectoryDoorCollision(
     for (const door of screen.doors) {
         let tMin = 0;
         let tMax = 1;
+        const effYMax = (door.xMin === 0 || door.xMax >= 950) ? Math.max(door.yMax, 420) : door.yMax;
         const p = [-dx, dx, -dy, dy];
-        const q = [x0 - door.xMin, door.xMax - x0, y0 - door.yMin, door.yMax - y0];
+        const q = [x0 - door.xMin, door.xMax - x0, y0 - door.yMin, effYMax - y0];
         let intersects = true;
 
         for (let i = 0; i < 4; i++) {

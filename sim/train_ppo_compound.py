@@ -584,7 +584,7 @@ def evaluate_and_record_match(
     return metrics
 
 
-def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int = 4000, epochs: int = 25):
+def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int = 6000, epochs: int = 30):
     """
     Fast 2-second Behavioral Cloning bootstrap.
     Teaches the network the spatial prior for door traversal and melee combos
@@ -683,7 +683,7 @@ def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int 
             pred_m = model.move_type_head(h2)
             pred_coord = torch.sigmoid(model.coord_head(h2))
 
-            loss = loss_fn_c(pred_c, bc) + loss_fn_m(pred_m, bm) + 2.0 * loss_fn_coord(pred_coord, bcoord)
+            loss = loss_fn_c(pred_c, bc) + loss_fn_m(pred_m, bm) + 30.0 * loss_fn_coord(pred_coord, bcoord)
 
             optimizer.zero_grad()
             loss.backward()
@@ -693,7 +693,7 @@ def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int 
 
 
 def train_ppo_compound(
-    num_updates: int = 30,
+    num_updates: int = 15,
     steps_per_update: int = 2048,
     minibatch_size: int = 256,
     ppo_epochs: int = 4,
@@ -713,18 +713,19 @@ def train_ppo_compound(
 
     # 2. Build Model & Warm Start with Spatial Prior
     model = CompoundActorCritic()
-    pretrain_expert_demonstrations(model, num_samples=3000, epochs=20)
+    pretrain_expert_demonstrations(model, num_samples=6000, epochs=30)
     optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-5)
 
     env = Bludrut1v1Env(max_steps=600, seed=42)
 
     # Pre-training Baseline Evaluation
-    print("\n[Baseline Evaluation] Evaluating initial policy against curriculum...")
+    print("\n[Baseline Evaluation] Evaluating initial policy against curriculum...", flush=True)
     init_metrics = evaluate_and_record_match(model, env, update_num=0, episodes=20)
     print(
         f"[Baseline Evaluation] WinRate: {init_metrics['win_rate']*100:.1f}%, "
         f"LossRate: {init_metrics['loss_rate']*100:.1f}%, "
-        f"AvgWinHP: {init_metrics['avg_win_hp_ratio']*100:.1f}%"
+        f"AvgWinHP: {init_metrics['avg_win_hp_ratio']*100:.1f}%",
+        flush=True,
     )
 
     update_training_status(
@@ -737,6 +738,11 @@ def train_ppo_compound(
     )
 
     best_win_rate = init_metrics["win_rate"]
+    best_metrics = init_metrics
+    CHECKPOINT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), CHECKPOINT_PATH)
+    export_compound_weights_to_ts(model, init_metrics, TS_WEIGHTS_PATH)
+    print(f"[Model Saved] Initial bootstrap policy checkpoint saved to {CHECKPOINT_PATH} and {TS_WEIGHTS_PATH}!", flush=True)
 
     obs_buf = np.zeros((steps_per_update, OBS_DIM), dtype=np.float32)
     cmask_buf = np.ones((steps_per_update, NUM_COMBAT_ACTIONS), dtype=bool)
@@ -861,14 +867,15 @@ def train_ppo_compound(
 
         # 4. Periodic Evaluation, Visualizer Broadcast, & Weight Exporting
         if update % 5 == 0 or update == num_updates:
-            metrics = evaluate_and_record_match(model, env, update_num=update, episodes=30)
+            metrics = evaluate_and_record_match(model, env, update_num=update, episodes=15)
             elapsed = time.time() - start_time
             print(
                 f"[Update {update:2d}/{num_updates:2d}] "
                 f"WinRate={metrics['win_rate']*100:.1f}% | "
                 f"AvgWinHP={metrics['avg_win_hp_ratio']*100:.1f}% | "
                 f"LossRate={metrics['loss_rate']*100:.1f}% | "
-                f"Elapsed={elapsed:.1f}s"
+                f"Elapsed={elapsed:.1f}s",
+                flush=True,
             )
 
             update_training_status(
@@ -882,13 +889,14 @@ def train_ppo_compound(
 
             if metrics["win_rate"] >= best_win_rate:
                 best_win_rate = metrics["win_rate"]
-                CHECKPOINT_PATH.parent.mkdir(parents=True, exist_ok=True)
+                best_metrics = metrics
                 torch.save(model.state_dict(), CHECKPOINT_PATH)
                 export_compound_weights_to_ts(model, metrics, TS_WEIGHTS_PATH)
+                print(f"[Model Saved] New best WinRate {best_win_rate*100:.1f}% saved!", flush=True)
 
     if CHECKPOINT_PATH.exists():
         model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location="cpu"))
-    export_compound_weights_to_ts(model, metrics, TS_WEIGHTS_PATH)
+    export_compound_weights_to_ts(model, best_metrics, TS_WEIGHTS_PATH)
     print("\n======================================================================")
     print(f"[Training Finished] Best PPO Continuous WinRate: {best_win_rate*100:.1f}%")
     print("Visualizer server remains active on http://localhost:8088.")

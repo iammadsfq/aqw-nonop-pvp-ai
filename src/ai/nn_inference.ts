@@ -62,6 +62,12 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
         ? Math.max(0, BLUDRUT_16_SCREENS.findIndex((s) => s.cell.toLowerCase() === opp.cell.toLowerCase()))
         : 7; // default mid (7)
 
+    const isBlueTeam = obs.selfTeam
+        ? obs.selfTeam === "blue"
+        : (obs.currentCell.toLowerCase().includes("0") || obs.currentCell.toLowerCase() === "enter0" || !obs.currentCell.toLowerCase().includes("1"));
+    const ownSz = isBlueTeam ? "Enter0" : "Enter1";
+    const ownRestorer = isBlueTeam ? "Resource0A" : "Resource1A";
+
     const anyOpp = obs.opponents.find(
         (p) =>
             p.alive &&
@@ -69,7 +75,19 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
             p.cell.toLowerCase() !== "enter1" &&
             p.cell.toLowerCase() !== "wait",
     );
-    const targetNavCell = anyOpp ? anyOpp.cell : "Crosslower";
+
+    let targetNavCell = "Crosslower";
+    if (obs.wave.canReturnToSafezone) {
+        targetNavCell = ownSz;
+    } else if (obs.selfHpRatio < 0.30 && !sameCell) {
+        // Tactical retreat/hide to Restorer when low HP
+        targetNavCell = ownRestorer;
+    } else if (anyOpp) {
+        targetNavCell = anyOpp.cell;
+    } else {
+        targetNavCell = "Crosslower";
+    }
+
     const nextDoor = !sameCell ? findNextDoorTowardCell(obs.currentCell, targetNavCell) : null;
 
     let targetRelX = 0.0;
@@ -235,45 +253,36 @@ export function inferBattleWarriorDecision(
     let targetX = Math.round(40.0 + normX * 880.0);
     let targetY = Math.round(240.0 + normY * 260.0);
 
-    // Movement & Roaming Navigation Resolution
+    // 100% Pure Atomic Sensorimotor Interaction:
+    // The neural network outputs continuous ground coordinates (targetX, targetY).
+    // If the chosen coordinates or movement trajectory reach a physical door trigger,
+    // the door naturally triggers the screen transition!
     let targetCell: string | undefined = undefined;
     let targetPad: string | undefined = undefined;
-    let finalMoveType: AtomicMovementType = chosenMoveType;
 
-    if (!oppInCell) {
-        // Roaming across screens: Navigate decisively toward opponent / Mid / Safezone
-        const anyOpp = obs.opponents.find(
-            (p) =>
-                p.alive &&
-                p.cell.toLowerCase() !== "enter0" &&
-                p.cell.toLowerCase() !== "enter1" &&
-                p.cell.toLowerCase() !== "wait",
-        );
-        const goalCell = obs.wave.canReturnToSafezone
-            ? (obs.inSafezone ? obs.currentCell : (obs.currentCell.includes("0") ? "Enter0" : "Enter1"))
-            : (anyOpp ? anyOpp.cell : "Crosslower");
+    const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
+    const hitDoor = currentScreen?.doors.find((d) => {
+        const effYMax = (d.xMin === 0 || d.xMax >= 950) ? Math.max(d.yMax, 420) : d.yMax;
+        const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= effYMax;
+        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < 110;
+        return inBox || nearAim;
+    });
 
-        const nextDoor = findNextDoorTowardCell(obs.currentCell, goalCell);
-        if (nextDoor) {
-            targetX = nextDoor.aimX;
-            targetY = nextDoor.aimY;
-            targetCell = nextDoor.targetCell;
-            targetPad = nextDoor.targetPad;
-            finalMoveType = obs.canSprint ? "SPRINT" : "WALK";
-        }
+    if (hitDoor) {
+        targetCell = hitDoor.targetCell;
+        targetPad = hitDoor.targetPad;
     } else {
-        // In-room combat: Neural network controls 100% continuous spatial target (targetX, targetY)
-        const hit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
-        if (hit && obs.wave.canReturnToSafezone) {
-            targetCell = hit.door.targetCell;
-            targetPad = hit.door.targetPad;
+        const trajHit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
+        if (trajHit) {
+            targetCell = trajHit.door.targetCell;
+            targetPad = trajHit.door.targetPad;
         }
     }
 
     return {
         combatAction: chosenCombatAction,
         movement: {
-            type: finalMoveType,
+            type: chosenMoveType,
             targetX,
             targetY,
             targetCell,
@@ -281,8 +290,6 @@ export function inferBattleWarriorDecision(
         },
         targetName: oppInCell ? oppInCell.username : undefined,
         npcMapId: undefined,
-        reason: oppInCell
-            ? `[AtomicPolicy] Action: ${chosenCombatAction} | Move: ${finalMoveType} -> (${targetX}, ${targetY})`
-            : `[AtomicPolicy] Roaming ${obs.currentCell} -> ${targetCell ?? "Crosslower"} (Move: ${finalMoveType})`,
+        reason: `[AtomicPolicy] Action: ${chosenCombatAction} | Move: ${chosenMoveType} -> (${targetX}, ${targetY})${targetCell ? ` [Door -> ${targetCell}]` : ""}`,
     };
 }
