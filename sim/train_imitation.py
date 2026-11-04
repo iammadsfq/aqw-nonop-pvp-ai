@@ -158,12 +158,16 @@ def load_demonstrations(file_path: Path):
                 move_type = 0  # STAND
 
             # 3. Determine Target Coordinates:
-            # If moving, target is the lookahead destination (5 frames / 0.5s into future)
-            # If standing, target is current position
+            # If moving, prefer ground-truth mouse click target (targetX, targetY) when recorded,
+            # otherwise fallback to natural lookahead destination (5 frames / 0.5s into future)
             if is_moving:
-                lookahead_idx = min(n - 1, i + 5)
-                target_x = float(s[lookahead_idx].get("selfX", r.get("selfX", 480.0)))
-                target_y = float(s[lookahead_idx].get("selfY", r.get("selfY", 400.0)))
+                if "targetX" in r and "targetY" in r and r["targetX"] is not None:
+                    target_x = float(r["targetX"])
+                    target_y = float(r["targetY"])
+                else:
+                    lookahead_idx = min(n - 1, i + 5)
+                    target_x = float(s[lookahead_idx].get("selfX", r.get("selfX", 480.0)))
+                    target_y = float(s[lookahead_idx].get("selfY", r.get("selfY", 400.0)))
             else:
                 target_x = float(r.get("selfX", 480.0))
                 target_y = float(r.get("selfY", 400.0))
