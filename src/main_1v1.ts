@@ -274,6 +274,19 @@ export default function main(): void {
         }
 
         const obs = extractObservation(allyNames, wave);
+
+        // Anti-Roofing Safeguard: If avatar is caught on ceiling rafters (y < 260) or off-screen bottom (y > 480)
+        if (bot.player.y < 260 || bot.player.y > 480) {
+            try {
+                bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
+            } catch (_) {}
+            const recoverX = Math.min(800, Math.max(160, bot.player.x));
+            bot.player.walkTo(recoverX, 350, AQW_DEFAULT_WALK_SPEED);
+            bot.log(`[AntiRoofing] Avatar off-bounds (Y=${bot.player.y})! Walking down to floor (${recoverX}, 350).`);
+            bot.sleep(250);
+            continue;
+        }
+
         if (obs.currentCell !== currentCellTracker) {
             // Stop residual walking immediately upon changing rooms so the avatar
             // does NOT overshoot across the new screen to the previous click point!

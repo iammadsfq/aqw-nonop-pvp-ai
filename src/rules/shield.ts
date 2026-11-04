@@ -159,10 +159,10 @@ export function applyRuleShield(
         let safeY = sanitizedMovement.targetY;
 
         // Stage bounds for in-room combat & kiting:
-        // Clamps to walkable area (X: 60..900, Y: 240..460) to prevent roofing (Y < 220)
+        // Clamps to walkable area (X: 80..860, Y: 290..435) to permanently prevent roofing (Y < 270)
         // while allowing full 2D movement across platforms and floor.
-        safeX = Math.min(900, Math.max(60, safeX));
-        safeY = Math.min(460, Math.max(240, safeY));
+        safeX = Math.min(860, Math.max(80, safeX));
+        safeY = Math.min(435, Math.max(290, safeY));
 
         sanitizedMovement.targetX = safeX;
         sanitizedMovement.targetY = safeY;
