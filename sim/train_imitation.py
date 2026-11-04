@@ -136,6 +136,9 @@ def load_demonstrations(file_path: Path):
                 combat_act = 5
             elif "MANA_TAP" in act_name or act_idx == 10:
                 combat_act = 6
+            elif obs[20] > 0.5 and obs[21] > 0.5:
+                # Opponent is alive and in same room: continuous combat engagement (Auto-Attack)
+                combat_act = 1  # AUTO_ATTACK
             elif obs[4] > 0.5:  # inCombat flag
                 combat_act = 1  # AUTO_ATTACK
             else:
@@ -197,7 +200,12 @@ def train_compound_policy(X, y_combat, y_move, y_coord, epochs=60, batch_size=32
     model = CompoundPolicyMLP().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 
-    criterion_combat = nn.CrossEntropyLoss()
+    counts = np.bincount(y_combat, minlength=NUM_COMBAT_ACTIONS)
+    raw_weights = [1.0 / (max(1, c) ** 0.5) for c in counts]
+    weights_tensor = torch.tensor(raw_weights, dtype=torch.float32).to(device)
+    weights_tensor = weights_tensor / weights_tensor.sum() * float(NUM_COMBAT_ACTIONS)
+
+    criterion_combat = nn.CrossEntropyLoss(weight=weights_tensor)
     criterion_move = nn.CrossEntropyLoss()
     criterion_coord = nn.MSELoss()
 

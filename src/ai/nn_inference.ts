@@ -200,6 +200,9 @@ export function inferBattleWarriorDecision(
     const safeNpc = findSafeManaTapNpc(obs);
 
     // Mask illegal combat actions
+    // When actively engaging an alive opponent, NEVER choose NONE! Always maintain pressure.
+    combatLogits[0] = -1e9;
+
     if (!inMelee) {
         combatLogits[2] = -1e9; // S1 out of range
         combatLogits[3] = -1e9; // S2 out of range
@@ -210,6 +213,17 @@ export function inferBattleWarriorDecision(
     if (!obs.skillsReady[2]) combatLogits[4] = -1e9; // S3 CD
     if (!obs.skillsReady[3]) combatLogits[5] = -1e9; // S4 CD
     if (!safeNpc || obs.selfMp >= 35) combatLogits[6] = -1e9; // MANA_TAP_NPC
+
+    // Tactical Warrior Synergies:
+    const oppStunned = oppInCell.auras.some((a) =>
+        /off balance|stun|stone|paralyze|disabled|petrif|frozen|sleep|root/i.test(a.name),
+    );
+    if (obs.skillsReady[1] && inMelee && !oppStunned) {
+        combatLogits[3] += 2.0; // Stun opener with Skill 2
+    }
+    if (oppStunned && obs.skillsReady[0] && inMelee) {
+        combatLogits[2] += 2.5; // Decisive Strike execution on stunned target
+    }
 
     let bestCombatIdx = 0;
     let bestCombatScore = -Infinity;
