@@ -199,33 +199,25 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             if (doorArrivedAt === 0) {
                 doorArrivedAt = now;
             } else if (now - doorArrivedAt > 3000) {
-                if (stepDownAttempts < 2) {
-                    stepDownAttempts++;
-                    isSteppingDown = true;
-                    stepDownUntil = now + 600;
+                stepDownAttempts++;
+                isSteppingDown = true;
+                stepDownUntil = now + 600;
 
-                    const stepX =
-                        targetDoor.aimX > 500
-                            ? Math.max(120, Math.round(obs.selfX - 120))
-                            : Math.min(840, Math.round(obs.selfX + 120));
+                const stepX =
+                    targetDoor.aimX > 500
+                        ? Math.max(120, Math.round(obs.selfX - 120))
+                        : Math.min(840, Math.round(obs.selfX + 120));
 
-                    const stepY =
-                        targetDoor.aimY < 380
-                            ? Math.min(430, Math.round(obs.selfY + 70))
-                            : Math.max(280, Math.round(obs.selfY - 70));
+                const stepY =
+                    targetDoor.aimY < 380
+                        ? Math.min(430, Math.round(obs.selfY + 70))
+                        : Math.max(280, Math.round(obs.selfY - 70));
 
-                    stepDownTargetX = stepX;
-                    stepDownTargetY = stepY;
-                    bot.log(
-                        `[DoorSync] Stuck di pintu ${targetDoor.targetAlias} (${targetDoor.targetCell}) selama ${now - doorArrivedAt}ms. Turun dikit ke (${stepX}, ${stepY}) lalu masuk lagi... (attempt #${stepDownAttempts})`,
-                    );
-                } else {
-                    bot.log(
-                        `[DoorSync] Flash transition lagging (${now - doorArrivedAt}ms) di ${targetDoor.targetCell}. Pindah room langsung via jump(${targetDoor.targetCell}, ${targetDoor.targetPad})...`,
-                    );
-                    bot.map.jump(targetDoor.targetCell, targetDoor.targetPad);
-                    doorArrivedAt = now;
-                }
+                stepDownTargetX = stepX;
+                stepDownTargetY = stepY;
+                bot.log(
+                    `[DoorSync] Stuck di pintu ${targetDoor.targetAlias} (${targetDoor.targetCell}) selama ${now - doorArrivedAt}ms. Turun dikit ke (${stepX}, ${stepY}) lalu masuk lagi... (attempt #${stepDownAttempts})`,
+                );
             }
         }
 
