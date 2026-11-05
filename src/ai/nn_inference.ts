@@ -14,6 +14,7 @@
 import {
     BLUDRUT_16_SCREENS,
     checkTrajectoryDoorCollision,
+    DoorTriggerArea,
     findNextDoorTowardCell,
     getDoorAimCoordinates,
 } from "../config/constants";
@@ -45,6 +46,40 @@ export function isMeleeInRange(selfX: number, selfY: number, oppX: number, oppY:
     const dx = Math.abs(selfX - oppX);
     const dy = Math.abs(selfY - oppY);
     return dx <= MELEE_MAX_DX && dy <= MELEE_MAX_DY;
+}
+
+export function findTargetNavCellAndDoor(
+    currentCell: string,
+    opponents: readonly { alive: boolean; cell?: string }[],
+    awayFromMidSeconds?: number,
+): { targetNavCell: string; nextDoor: DoorTriggerArea | null } {
+    const anyOpp = opponents.find(
+        (p) =>
+            p.alive &&
+            p.cell &&
+            p.cell.trim() !== "" &&
+            BLUDRUT_16_SCREENS.some((s) => s.cell.toLowerCase() === p.cell!.toLowerCase()) &&
+            p.cell.toLowerCase() !== "enter0" &&
+            p.cell.toLowerCase() !== "enter1" &&
+            p.cell.toLowerCase() !== "wait",
+    );
+
+    const awaySec = awayFromMidSeconds ?? 0.0;
+    // 1-minute tournament rule: if player has spent >= 48s away from Mid without combat,
+    // immediately route to Mid (Crosslower) to touch/contest Mid before the 60s expires!
+    const mustReturnToMid = awaySec >= 48.0;
+
+    let targetNavCell = "Crosslower";
+    if (mustReturnToMid) {
+        targetNavCell = "Crosslower";
+    } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== currentCell.toLowerCase()) {
+        targetNavCell = anyOpp.cell;
+    } else {
+        targetNavCell = "Crosslower";
+    }
+
+    const nextDoor = findNextDoorTowardCell(currentCell, targetNavCell);
+    return { targetNavCell, nextDoor };
 }
 
 /**
@@ -84,34 +119,15 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
         : (obs.currentCell.toLowerCase().includes("0") || obs.currentCell.toLowerCase() === "enter0" || !obs.currentCell.toLowerCase().includes("1"));
     const ownSz = isBlueTeam ? "Enter0" : "Enter1";
 
-    const anyOpp = obs.opponents.find(
-        (p) =>
-            p.alive &&
-            p.cell &&
-            p.cell.trim() !== "" &&
-            BLUDRUT_16_SCREENS.some((s) => s.cell.toLowerCase() === p.cell.toLowerCase()) &&
-            p.cell.toLowerCase() !== "enter0" &&
-            p.cell.toLowerCase() !== "enter1" &&
-            p.cell.toLowerCase() !== "wait",
-    );
-
     const awaySec = obs.awayFromMidSeconds ?? 0.0;
     const midTimerRatio = Math.min(1.0, awaySec / 60.0);
 
-    let targetNavCell = "Crosslower";
-    // 1-minute tournament rule: if player has spent >= 48s away from Mid without combat,
-    // immediately route to Mid (Crosslower) to touch/contest Mid before the 60s expires!
-    const mustReturnToMid = awaySec >= 48.0;
-
-    if (mustReturnToMid) {
-        targetNavCell = "Crosslower";
-    } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
-        targetNavCell = anyOpp.cell;
-    } else {
-        targetNavCell = "Crosslower";
-    }
-
-    const nextDoor = !sameCell ? findNextDoorTowardCell(obs.currentCell, targetNavCell) : null;
+    const { targetNavCell, nextDoor: rawNextDoor } = findTargetNavCellAndDoor(
+        obs.currentCell,
+        obs.opponents,
+        obs.awayFromMidSeconds,
+    );
+    const nextDoor = !sameCell ? rawNextDoor : null;
 
     let targetRelX = 0.0;
     let targetRelY = 0.0;
@@ -223,6 +239,13 @@ export function inferBattleWarriorDecision(
     const sameCell = Boolean(oppInCell && oppInCell.alive);
     const safeNpc = findSafeManaTapNpc(obs);
 
+    const { nextDoor: rawNextDoor } = findTargetNavCellAndDoor(
+        obs.currentCell,
+        obs.opponents,
+        obs.awayFromMidSeconds,
+    );
+    const nextDoor = !sameCell ? rawNextDoor : null;
+
     // Shared Neural Backbone forward pass
     const x = buildObservationVector28(obs);
     const h1 = denseTanh(x, policy.w1, policy.b1);
@@ -331,6 +354,13 @@ export function inferBattleWarriorDecision(
                 targetX = trajHit.door.aimX;
                 targetY = trajHit.door.aimY;
             }
+        } else if (!sameCell && nextDoor && chosenMoveType !== "STAND") {
+            // Roaming safety guarantee: If moving across screens and continuous coordinates missed door trigger box,
+            // route through nextDoor to prevent stalling in rooms:
+            targetCell = nextDoor.targetCell;
+            targetPad = nextDoor.targetPad;
+            targetX = nextDoor.aimX;
+            targetY = nextDoor.aimY;
         }
     }
 

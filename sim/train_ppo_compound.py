@@ -158,11 +158,7 @@ class CompoundActorCritic(nn.Module):
 
         total_logp = logp_combat + logp_move + logp_coord
 
-        entropy = (
-            dist_combat.entropy()
-            + dist_move.entropy()
-            + 0.1 * dist_coord.entropy().sum(dim=-1)
-        )
+        entropy = dist_combat.entropy() + dist_move.entropy()
         value = self.critic_head(h2).squeeze(-1)
 
         return c_chosen, m_chosen, coords_chosen, total_logp, entropy, value
@@ -920,7 +916,7 @@ def train_ppo_compound(
                 else:
                     spatial_anchor_loss = 0.0
 
-                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 2.0 * spatial_anchor_loss
+                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 30.0 * spatial_anchor_loss
 
                 optimizer.zero_grad()
                 loss.backward()
