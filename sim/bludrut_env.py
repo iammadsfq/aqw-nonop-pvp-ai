@@ -502,8 +502,8 @@ class Bludrut1v1Env(gym.Env):
         )
         self.action_space = spaces.Discrete(NUM_ACTIONS)
 
-        self.agent: FighterState = FighterState("Uma", "blue", "Enter0", 350.0, 360.0)
-        self.enemy: FighterState = FighterState("Opponent", "red", "Enter1", 600.0, 360.0)
+        self.agent: FighterState = FighterState("Uma", "blue", "Enter0", 324.0, 345.0)
+        self.enemy: FighterState = FighterState("Opponent", "red", "Enter1", 246.0, 303.0)
         self.npc_hp: dict[str, float] = {}
         self.step_count = 0
         self.wave_won = False
@@ -574,21 +574,36 @@ class Bludrut1v1Env(gym.Env):
         enemy_team = "red" if agent_team == "blue" else "blue"
         sz_agent = "Enter0" if agent_team == "blue" else "Enter1"
         sz_enemy = "Enter1" if agent_team == "blue" else "Enter0"
-        sz_agent_x = 350.0 if agent_team == "blue" else 600.0
-        sz_enemy_x = 600.0 if agent_team == "blue" else 350.0
+        sz_agent_x = 324.0 if agent_team == "blue" else 246.0
+        sz_enemy_x = 246.0 if agent_team == "blue" else 324.0
+        sz_agent_y = 345.0 if agent_team == "blue" else 303.0
+        sz_enemy_y = 303.0 if agent_team == "blue" else 345.0
 
         spawn_type = float(self.rng.random())
         if spawn_type < 0.35:
-            self.agent = FighterState(
-                "Uma", agent_team, sz_agent,
-                sz_agent_x + float(self.rng.uniform(-30, 30)),
-                360.0 + float(self.rng.uniform(-20, 20))
-            )
-            self.enemy = FighterState(
-                "Opponent", enemy_team, sz_enemy,
-                sz_enemy_x + float(self.rng.uniform(-30, 30)),
-                360.0 + float(self.rng.uniform(-20, 20))
-            )
+            # 50% exact Flash Pad Spawn, 50% full floor coverage
+            if self.rng.random() < 0.50:
+                ag_x = sz_agent_x + float(self.rng.uniform(-15, 15))
+                ag_y = sz_agent_y + float(self.rng.uniform(-10, 10))
+                en_x = sz_enemy_x + float(self.rng.uniform(-15, 15))
+                en_y = sz_enemy_y + float(self.rng.uniform(-10, 10))
+            else:
+                if agent_team == "blue":
+                    ag_x = float(self.rng.uniform(250.0, 750.0))
+                    ag_y = float(self.rng.uniform(300.0, 370.0))
+                else:
+                    ag_x = float(self.rng.uniform(180.0, 550.0))
+                    ag_y = float(self.rng.uniform(280.0, 340.0))
+
+                if enemy_team == "blue":
+                    en_x = float(self.rng.uniform(250.0, 750.0))
+                    en_y = float(self.rng.uniform(300.0, 370.0))
+                else:
+                    en_x = float(self.rng.uniform(180.0, 550.0))
+                    en_y = float(self.rng.uniform(280.0, 340.0))
+
+            self.agent = FighterState("Uma", agent_team, sz_agent, ag_x, ag_y)
+            self.enemy = FighterState("Opponent", enemy_team, sz_enemy, en_x, en_y)
         elif spawn_type < 0.65:
             corridor_rooms = ["Morale0C", "Morale0B", "Morale0A", "Crosslower", "Morale1A", "Morale1B", "Morale1C"]
             c_agent = str(self.rng.choice(corridor_rooms))
@@ -1478,8 +1493,10 @@ class Bludrut1v1Env(gym.Env):
         self.last_kill_event = ""
         agent_sz = "Enter0" if self.agent.team == "blue" else "Enter1"
         enemy_sz = "Enter1" if self.agent.team == "blue" else "Enter0"
-        agent_sz_x = 350.0 if self.agent.team == "blue" else 600.0
-        enemy_sz_x = 600.0 if self.agent.team == "blue" else 350.0
+        agent_sz_x = 324.0 if self.agent.team == "blue" else 246.0
+        enemy_sz_x = 246.0 if self.agent.team == "blue" else 324.0
+        agent_sz_y = 345.0 if self.agent.team == "blue" else 303.0
+        enemy_sz_y = 303.0 if self.agent.team == "blue" else 345.0
 
         if self.enemy.hp <= 0.0 and self.agent.hp <= 0.0:
             self.blue_kills += 1
@@ -1492,8 +1509,8 @@ class Bludrut1v1Env(gym.Env):
                 en_score = self.red_kills if self.agent.team == "blue" else self.blue_kills
                 info["winner"] = "draw" if ag_score == en_score else ("agent" if ag_score > en_score else "enemy")
             else:
-                self._respawn_fighter(self.agent, agent_sz, agent_sz_x, 360.0)
-                self._respawn_fighter(self.enemy, enemy_sz, enemy_sz_x, 360.0)
+                self._respawn_fighter(self.agent, agent_sz, agent_sz_x, agent_sz_y)
+                self._respawn_fighter(self.enemy, enemy_sz, enemy_sz_x, enemy_sz_y)
                 self.agent_has_exited_sz = False
                 self.agent_sz_time = 0.0
                 self.wave_won = True
@@ -1512,7 +1529,7 @@ class Bludrut1v1Env(gym.Env):
                 terminated = True
                 info["winner"] = "agent"
             else:
-                self._respawn_fighter(self.enemy, enemy_sz, enemy_sz_x, 360.0)
+                self._respawn_fighter(self.enemy, enemy_sz, enemy_sz_x, enemy_sz_y)
                 self.enemy_returning_to_sz = False
 
         elif self.agent.hp <= 0.0:
@@ -1527,7 +1544,7 @@ class Bludrut1v1Env(gym.Env):
                 terminated = True
                 info["winner"] = "enemy"
             else:
-                self._respawn_fighter(self.agent, agent_sz, agent_sz_x, 360.0)
+                self._respawn_fighter(self.agent, agent_sz, agent_sz_x, agent_sz_y)
                 self.agent_has_exited_sz = False
                 self.agent_sz_time = 0.0
                 self.enemy_returning_to_sz = True

@@ -27,6 +27,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bludrut_env import (
+    BLUDRUT_SCREENS,
+    FighterState,
     MAX_HP,
     OBS_DIM,
     SCREEN_BY_CELL,
@@ -156,10 +158,7 @@ class CompoundActorCritic(nn.Module):
 
         logp_combat = dist_combat.log_prob(c_chosen)
         logp_move = dist_move.log_prob(m_chosen)
-        logp_coord = dist_coord.log_prob(coords_chosen).sum(dim=-1)
-        logp_coord_masked = torch.where(same_room, logp_coord, torch.zeros_like(logp_coord))
-
-        total_logp = logp_combat + logp_move + logp_coord_masked
+        total_logp = logp_combat + logp_move
 
         entropy = dist_combat.entropy() + dist_move.entropy()
         value = self.critic_head(h2).squeeze(-1)
@@ -592,13 +591,13 @@ def evaluate_and_record_match(
     return metrics
 
 
-def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int = 6000, epochs: int = 30):
+def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int = 6400, epochs: int = 35):
     """
-    Fast 2-second Behavioral Cloning bootstrap.
-    Teaches the network the spatial prior for door traversal and melee combos
-    so PPO starts with high competency instead of random Brownian motion.
+    Balanced 16-Screen Behavioral Cloning bootstrap.
+    Teaches the network the exact spatial prior for door traversal and melee combos
+    across all 16 screens with authentic Flash coordinates so PPO starts with high competency.
     """
-    print("[Expert Bootstrap] Generating synthetic pro demonstrations across 16 screens...")
+    print("[Expert Bootstrap] Generating balanced synthetic pro demonstrations across 16 screens...")
     env = Bludrut1v1Env()
     rng = np.random.RandomState(42)
 
@@ -607,99 +606,125 @@ def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int 
     m_list = []
     coord_list = []
 
-    for _ in range(num_samples):
-        obs, _ = env.reset()
-        can_sprint = obs[3] > 0.5
-        self_x = obs[7] * 960.0
-        self_y = obs[8] * 550.0
-        s1_ready = obs[10] > 0.5
-        s2_ready = obs[11] > 0.5
-        s3_ready = obs[12] > 0.5
-        s4_ready = obs[13] > 0.5
-        target_rel_x = obs[15]
-        target_rel_y = obs[16]
-        self_has_barrier = obs[18] < 0.7   # in_dmg_mult = 0.50
-        self_is_stunned = obs[19] > 0.5
-        opp_has_barrier = obs[20] < 0.7    # in_dmg_mult = 0.50
-        opp_is_stunned = obs[21] > 0.5
-        same_cell = obs[23] > 0.5
-        dist = obs[24] * 1000.0
-        in_melee = obs[25] > 0.5
-        opp_hp_ratio = obs[26]
-        has_safe_npc = obs[27] > 0.5
+    samples_per_screen = max(100, num_samples // len(BLUDRUT_SCREENS))
 
-        if not same_cell:
-            # Roaming: Head toward door or pre-buff on safe NPC
-            if has_safe_npc and s4_ready and not self_has_barrier and rng.random() < 0.70:
-                # Pro tactic: tap safe NPC (Brawler/Restorer) to activate On Guard before entering Mid!
-                c_act = 5  # S4 On Guard
-            elif s3_ready and rng.random() < 0.35:
-                c_act = 4  # S3 Prepared Strike
+    for s in BLUDRUT_SCREENS:
+        for _ in range(samples_per_screen):
+            agent_team = "red" if (s.side == "red" or ("1" in s.cell)) else "blue"
+            enemy_team = "blue" if agent_team == "red" else "red"
+
+            if s.cell == "Enter1":
+                if rng.random() < 0.50:
+                    ax = float(rng.uniform(235.0, 255.0))
+                    ay = float(rng.uniform(295.0, 310.0))
+                else:
+                    ax = float(rng.uniform(160.0, 500.0))
+                    ay = float(rng.uniform(270.0, 330.0))
+                ex, ey = 500.0, 360.0
+                opp_cell = "Morale1C"
+            elif s.cell == "Enter0":
+                if rng.random() < 0.50:
+                    ax = float(rng.uniform(315.0, 335.0))
+                    ay = float(rng.uniform(335.0, 355.0))
+                else:
+                    ax = float(rng.uniform(260.0, 700.0))
+                    ay = float(rng.uniform(290.0, 350.0))
+                ex, ey = 500.0, 360.0
+                opp_cell = "Morale0C"
             else:
-                c_act = 0  # NONE
-            m_act = 2 if (can_sprint and rng.random() < 0.75) else 1  # SPRINT or WALK
-            tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
-            ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
-        else:
-            # In room with opponent
-            if not in_melee:
-                # Approach opponent
-                c_act = 4 if (s3_ready and rng.random() < 0.40) else 0
-                m_act = 2 if (can_sprint and dist > 350.0) else 1
+                ax = float(rng.uniform(200.0, 760.0))
+                ay = float(rng.uniform(270.0, 420.0))
+                opp_cell = s.cell if rng.random() < 0.50 else "Crosslower"
+                ex = float(rng.uniform(200.0, 760.0))
+                ey = float(rng.uniform(270.0, 420.0))
+
+            env.agent = FighterState("Uma", agent_team, s.cell, ax, ay)
+            env.enemy = FighterState("Opponent", enemy_team, opp_cell, ex, ey)
+            obs = env._get_obs(env.agent, env.enemy)
+
+            can_sprint = obs[3] > 0.5
+            self_x = obs[7] * 960.0
+            self_y = obs[8] * 550.0
+            s1_ready = obs[10] > 0.5
+            s2_ready = obs[11] > 0.5
+            s3_ready = obs[12] > 0.5
+            s4_ready = obs[13] > 0.5
+            target_rel_x = obs[15]
+            target_rel_y = obs[16]
+            self_has_barrier = obs[18] < 0.7   # in_dmg_mult = 0.50
+            self_is_stunned = obs[19] > 0.5
+            opp_has_barrier = obs[20] < 0.7    # in_dmg_mult = 0.50
+            opp_is_stunned = obs[21] > 0.5
+            same_cell = obs[23] > 0.5
+            dist = obs[24] * 1000.0
+            in_melee = obs[25] > 0.5
+            opp_hp_ratio = obs[26]
+            has_safe_npc = obs[27] > 0.5
+
+            if not same_cell:
+                # Roaming: Head toward door or pre-buff on safe NPC
+                if has_safe_npc and s4_ready and not self_has_barrier and rng.random() < 0.70:
+                    c_act = 5  # S4 On Guard
+                elif s3_ready and rng.random() < 0.35:
+                    c_act = 4  # S3 Prepared Strike
+                else:
+                    c_act = 0  # NONE
+                m_act = 2 if (can_sprint and rng.random() < 0.75) else 1  # SPRINT or WALK
                 tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
                 ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
             else:
-                # In Melee Range
-                if opp_has_barrier:
-                    # Enemy has active barrier (-50% dmg): Kite & Vertical Spacing!
-                    # Do not waste high damage burst into barrier
-                    if s4_ready and not self_has_barrier and rng.random() < 0.80:
-                        c_act = 5  # Mutual defense with S4
-                    elif rng.random() < 0.60:
-                        c_act = 1  # Auto attack poke
-                    else:
-                        c_act = 0  # Save skills / wait
-
-                    # Vertical elevation shift (platform kiting) and horizontal retreat:
-                    # Upper platform: Y ~ 280, lower ground: Y ~ 380
-                    target_y_shift = 280.0 if self_y > 340.0 else 380.0
-                    away_dir_x = -1.0 if target_rel_x >= 0 else 1.0
-                    tx = np.clip(self_x + away_dir_x * 350.0, 40.0, 920.0)
-                    ty = np.clip(target_y_shift, 240.0, 500.0)
-                    m_act = 2 if can_sprint else 1  # Sprint away
+                # In room with opponent
+                if not in_melee:
+                    # Approach opponent
+                    c_act = 4 if (s3_ready and rng.random() < 0.40) else 0
+                    m_act = 2 if (can_sprint and dist > 350.0) else 1
+                    tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
+                    ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
                 else:
-                    # Tactical combat combo against unshielded opponent
-                    if opp_is_stunned:
-                        # Opponent is stunned! Free guaranteed burst:
-                        if s1_ready:
-                            c_act = 2  # S1 Decisive Strike
-                        elif s3_ready:
+                    # In Melee Range
+                    if opp_has_barrier:
+                        if s4_ready and not self_has_barrier and rng.random() < 0.80:
+                            c_act = 5  # Mutual defense with S4
+                        elif rng.random() < 0.60:
+                            c_act = 1  # Auto attack poke
+                        else:
+                            c_act = 0  # Save skills / wait
+
+                        target_y_shift = 280.0 if self_y > 340.0 else 380.0
+                        away_dir_x = -1.0 if target_rel_x >= 0 else 1.0
+                        tx = np.clip(self_x + away_dir_x * 350.0, 40.0, 920.0)
+                        ty = np.clip(target_y_shift, 240.0, 500.0)
+                        m_act = 2 if can_sprint else 1  # Sprint away
+                    else:
+                        if opp_is_stunned:
+                            if s1_ready:
+                                c_act = 2  # S1 Decisive Strike
+                            elif s3_ready:
+                                c_act = 4  # S3 Prepared Strike
+                            else:
+                                c_act = 1  # AA
+                        elif s2_ready and rng.random() < 0.85:
+                            c_act = 3  # S2 Imbalancing Strike (Stun)
+                        elif s3_ready and rng.random() < 0.75:
                             c_act = 4  # S3 Prepared Strike
+                        elif s1_ready and rng.random() < 0.85:
+                            c_act = 2  # S1 Decisive Strike
+                        elif s4_ready and not self_has_barrier and rng.random() < 0.60:
+                            c_act = 5  # S4 On Guard
                         else:
                             c_act = 1  # AA
-                    elif s2_ready and rng.random() < 0.85:
-                        c_act = 3  # S2 Imbalancing Strike (Stun)
-                    elif s3_ready and rng.random() < 0.75:
-                        c_act = 4  # S3 Prepared Strike
-                    elif s1_ready and rng.random() < 0.85:
-                        c_act = 2  # S1 Decisive Strike
-                    elif s4_ready and not self_has_barrier and rng.random() < 0.60:
-                        c_act = 5  # S4 On Guard
-                    else:
-                        c_act = 1  # AA
 
-                    # Melee stutter-step spacing
-                    m_act = 1 if rng.random() < 0.60 else 0
-                    tx = np.clip(self_x + rng.uniform(-60.0, 60.0), 40.0, 920.0)
-                    ty = np.clip(self_y + rng.uniform(-40.0, 40.0), 240.0, 500.0)
+                        m_act = 1 if rng.random() < 0.60 else 0
+                        tx = np.clip(self_x + rng.uniform(-60.0, 60.0), 40.0, 920.0)
+                        ty = np.clip(self_y + rng.uniform(-40.0, 40.0), 240.0, 500.0)
 
-        norm_x = (tx - 40.0) / 880.0
-        norm_y = (ty - 240.0) / 260.0
+            norm_x = (tx - 40.0) / 880.0
+            norm_y = (ty - 240.0) / 260.0
 
-        obs_list.append(obs)
-        c_list.append(c_act)
-        m_list.append(m_act)
-        coord_list.append([norm_x, norm_y])
+            obs_list.append(obs)
+            c_list.append(c_act)
+            m_list.append(m_act)
+            coord_list.append([norm_x, norm_y])
 
     X = torch.tensor(np.array(obs_list), dtype=torch.float32)
     Y_c = torch.tensor(np.array(c_list), dtype=torch.long)
@@ -722,13 +747,13 @@ def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int 
             pred_m = model.move_type_head(h2)
             pred_coord = torch.sigmoid(model.coord_head(h2))
 
-            loss = loss_fn_c(pred_c, bc) + loss_fn_m(pred_m, bm) + 30.0 * loss_fn_coord(pred_coord, bcoord)
+            loss = loss_fn_c(pred_c, bc) + loss_fn_m(pred_m, bm) + 50.0 * loss_fn_coord(pred_coord, bcoord)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-    print("[Expert Bootstrap] Complete! Policy successfully bootstrapped with spatial & combat priors.")
+    print(f"[Expert Bootstrap] Complete! Trained on {len(obs_list)} balanced demonstrations across {len(BLUDRUT_SCREENS)} screens.")
 
 
 def train_ppo_compound(
@@ -752,7 +777,7 @@ def train_ppo_compound(
 
     # 2. Build Model & Warm Start with Spatial Prior
     model = CompoundActorCritic()
-    pretrain_expert_demonstrations(model, num_samples=6000, epochs=30)
+    pretrain_expert_demonstrations(model, num_samples=6400, epochs=35)
     optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-5)
 
     env = Bludrut1v1Env(max_steps=600, seed=42)
@@ -897,29 +922,23 @@ def train_ppo_compound(
                 v_loss = 0.5 * ((new_val - b_ret[mb_inds]) ** 2).mean()
                 entropy_loss = entropy.mean()
 
-                # Auxiliary Spatial Prior Anchor:
-                # When roaming (obs[23] < 0.5), anchor target coordinates to the door aim direction
-                # so PPO optimization does not destroy navigation across 16 screens.
-                roaming_mask = (b_obs[mb_inds, 23] < 0.5)
-                if roaming_mask.any():
-                    self_x = b_obs[mb_inds, 7] * 960.0
-                    self_y = b_obs[mb_inds, 8] * 550.0
-                    rel_x = b_obs[mb_inds, 15]
-                    rel_y = b_obs[mb_inds, 16]
-                    ideal_tx = torch.clamp(self_x + rel_x * 960.0, 40.0, 920.0)
-                    ideal_ty = torch.clamp(self_y + rel_y * 550.0, 240.0, 500.0)
-                    ideal_norm_x = (ideal_tx - 40.0) / 880.0
-                    ideal_norm_y = (ideal_ty - 240.0) / 260.0
-                    ideal_coords = torch.stack([ideal_norm_x, ideal_norm_y], dim=-1)
+                # Auxiliary Spatial Prior Anchor across all states:
+                # Roaming: anchors target coordinates to exit door aim.
+                # In-cell: anchors target coordinates to tactical engagement with opponent.
+                self_x = b_obs[mb_inds, 7] * 960.0
+                self_y = b_obs[mb_inds, 8] * 550.0
+                rel_x = b_obs[mb_inds, 15]
+                rel_y = b_obs[mb_inds, 16]
+                ideal_tx = torch.clamp(self_x + rel_x * 960.0, 40.0, 920.0)
+                ideal_ty = torch.clamp(self_y + rel_y * 550.0, 240.0, 500.0)
+                ideal_norm_x = (ideal_tx - 40.0) / 880.0
+                ideal_norm_y = (ideal_ty - 240.0) / 260.0
+                ideal_coords = torch.stack([ideal_norm_x, ideal_norm_y], dim=-1)
 
-                    _, _, pred_coords_mu = model.forward_policy(b_obs[mb_inds])
-                    spatial_anchor_loss = nn.functional.mse_loss(
-                        pred_coords_mu[roaming_mask], ideal_coords[roaming_mask]
-                    )
-                else:
-                    spatial_anchor_loss = 0.0
+                _, _, pred_coords_mu = model.forward_policy(b_obs[mb_inds])
+                spatial_anchor_loss = nn.functional.mse_loss(pred_coords_mu, ideal_coords)
 
-                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 50.0 * spatial_anchor_loss
+                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 100.0 * spatial_anchor_loss
 
                 optimizer.zero_grad()
                 loss.backward()
