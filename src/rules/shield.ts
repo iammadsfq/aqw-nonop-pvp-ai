@@ -159,13 +159,9 @@ export function applyRuleShield(
         sanitizedMovement.targetX = safeX;
         sanitizedMovement.targetY = safeY;
 
-        // Trajectory collision check when not intentionally taking a door:
-        // Clamping before doors is ONLY applied when actively fighting an opponent in the room
-        // to prevent accidental arena exit during combat.
-        // When roaming (!oppInCell), allow the agent to pass through doors freely!
-        const oppInCell = obs.opponents.some(
-            (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
-        );
+        // Physical door trigger raycast collision:
+        // Clamping is ONLY applied if attempting an illegal Safezone retreat mid-fight before the wave is won.
+        // All legal arena doors (corridors, Mid, Restorer, Captain) are 100% permitted for tactical kiting!
         const collision = checkTrajectoryDoorCollision(
             obs.currentCell,
             obs.selfX,
@@ -174,22 +170,18 @@ export function applyRuleShield(
             safeY,
         );
         if (collision) {
-            if (oppInCell && !obs.wave.canReturnToSafezone) {
-                // In combat: clamp trajectory to stay inside the combat screen
-                const safeT = Math.max(0, collision.hitT - 0.15);
-                sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
-                sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
-                sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias}]`;
-            } else if (BLUDRUT_SAFEZONE_CELLS.has(collision.door.targetCell) && !obs.inSafezone && !obs.wave.canReturnToSafezone) {
-                // Illegal safezone entry mid-match: clamp before door
+            if (
+                BLUDRUT_SAFEZONE_CELLS.has(collision.door.targetCell) &&
+                !obs.inSafezone &&
+                !obs.wave.canReturnToSafezone
+            ) {
+                // Illegal safezone entry mid-match: clamp before door trigger area
                 const safeT = Math.max(0, collision.hitT - 0.15);
                 sanitizedMovement.targetX = Math.round(obs.selfX + (safeX - obs.selfX) * safeT);
                 sanitizedMovement.targetY = Math.round(obs.selfY + (safeY - obs.selfY) * safeT);
                 sanitizedReason += ` [RuleShield: clamped trajectory before ${collision.door.targetAlias} (safezone locked)]`;
             } else {
-                // Out of combat / roaming: snap cleanly to the door trigger aim coordinates!
-                sanitizedMovement.targetX = collision.door.aimX;
-                sanitizedMovement.targetY = collision.door.aimY;
+                // Natural screen transition: allow door to trigger without overriding (targetX, targetY)
                 sanitizedMovement.targetCell = collision.door.targetCell;
                 sanitizedMovement.targetPad = collision.door.targetPad;
                 sanitizedReason += ` [RuleShield: entering door ${collision.door.targetAlias}]`;

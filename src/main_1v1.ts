@@ -120,21 +120,11 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
 }
 
 function executeDecision(decision: CombatDecision, obs: CombatObservation, combatCell: string, safezoneCell: string): void {
-    // 1. Instant Target Lock: Emulates native human mouse-click on avatar sprite in Flash memory
-    // Immediately binds `world.myAvatar.target` in local memory so skills cast on this same frame don't drop!
+    // 1. Target Selection: Attacks the chosen target cleanly through Turu combat API
     if (
         decision.targetName &&
         (!obs.hasTarget || obs.targetIsNpc || obs.targetName?.toLowerCase() !== decision.targetName.toLowerCase())
     ) {
-        try {
-            const uo = bot.flash.get<any>(`world.uoTree.${decision.targetName.toLowerCase()}`);
-            if (uo) {
-                bot.flash.set("world.myAvatar.target", uo);
-                try {
-                    bot.flash.callGameFunction("world.rootClass.selectTarget", decision.targetName);
-                } catch (_) {}
-            }
-        } catch (_) {}
         bot.combat.attackPlayer(decision.targetName);
     } else if (decision.npcMapId !== undefined && (!obs.hasTarget || !obs.targetIsNpc)) {
         bot.combat.attack(decision.npcMapId);
@@ -492,7 +482,6 @@ export default function main(): void {
             // Stop residual walking immediately upon changing rooms so the avatar
             // does NOT overshoot across the new screen to the previous click point!
             try {
-                bot.flash.set("world.myAvatar.pMC.mcChar.onMove", false);
                 bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
             } catch (_) {}
             lastSentWalkCell = "";

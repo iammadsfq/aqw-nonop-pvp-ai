@@ -51,7 +51,6 @@ export function isMeleeInRange(selfX: number, selfY: number, oppX: number, oppY:
 export function findTargetNavCellAndDoor(
     currentCell: string,
     opponents: readonly { alive: boolean; cell?: string }[],
-    awayFromMidSeconds?: number,
 ): { targetNavCell: string; nextDoor: DoorTriggerArea | null } {
     const anyOpp = opponents.find(
         (p) =>
@@ -64,15 +63,8 @@ export function findTargetNavCellAndDoor(
             p.cell.toLowerCase() !== "wait",
     );
 
-    const awaySec = awayFromMidSeconds ?? 0.0;
-    // 1-minute tournament rule: if player has spent >= 48s away from Mid without combat,
-    // immediately route to Mid (Crosslower) to touch/contest Mid before the 60s expires!
-    const mustReturnToMid = awaySec >= 48.0;
-
     let targetNavCell = "Crosslower";
-    if (mustReturnToMid) {
-        targetNavCell = "Crosslower";
-    } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== currentCell.toLowerCase()) {
+    if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== currentCell.toLowerCase()) {
         targetNavCell = anyOpp.cell;
     } else {
         targetNavCell = "Crosslower";
@@ -125,7 +117,6 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
     const { targetNavCell, nextDoor: rawNextDoor } = findTargetNavCellAndDoor(
         obs.currentCell,
         obs.opponents,
-        obs.awayFromMidSeconds,
     );
     const nextDoor = !sameCell ? rawNextDoor : null;
 
