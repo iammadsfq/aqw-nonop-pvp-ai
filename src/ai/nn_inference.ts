@@ -95,8 +95,17 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
             p.cell.toLowerCase() !== "wait",
     );
 
+    const awaySec = obs.awayFromMidSeconds ?? 0.0;
+    const midTimerRatio = Math.min(1.0, awaySec / 60.0);
+
     let targetNavCell = "Crosslower";
-    if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
+    // 1-minute tournament rule: if player has spent >= 48s away from Mid without combat,
+    // immediately route to Mid (Crosslower) to touch/contest Mid before the 60s expires!
+    const mustReturnToMid = awaySec >= 48.0;
+
+    if (mustReturnToMid) {
+        targetNavCell = "Crosslower";
+    } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
         targetNavCell = anyOpp.cell;
     } else {
         targetNavCell = "Crosslower";
@@ -148,7 +157,7 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
         oppScreenIdx / 15.0,                                 // 14: opp screen index
         Math.min(1.0, Math.max(-1.0, targetRelX)),           // 15: primary target relative X (opp in room, or exit door when roaming)
         Math.min(1.0, Math.max(-1.0, targetRelY)),           // 16: primary target relative Y (opp in room, or exit door when roaming)
-        0.0,                                                 // 17: mid timer progress ratio
+        midTimerRatio,                                       // 17: mid timer progress ratio
         selfInDmgMultiplier,                                 // 18: self incoming damage multiplier (0.50 if barrier, 1.0 normal)
         selfHardCc,                                          // 19: self stunned / disabled
         oppInDmgMultiplier,                                  // 20: opp incoming damage multiplier (0.50 if barrier, 1.0 normal)
@@ -297,8 +306,6 @@ export function inferBattleWarriorDecision(
 
     const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
     const hitDoor = currentScreen?.doors.find((d) => {
-        // In 1v1 PvP, Captain rooms are strictly excluded:
-        if (d.targetCell === "Captain0" || d.targetCell === "Captain1") return false;
         const isCorridorDoor = (d.xMin === 0 || d.xMax >= 950);
         const effYMax = isCorridorDoor ? Math.max(d.yMax, 420) : d.yMax;
         const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= effYMax;

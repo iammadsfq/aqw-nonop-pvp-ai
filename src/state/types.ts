@@ -77,6 +77,8 @@ export interface CombatObservation {
 
     // Wave & Rule state
     wave: WaveTrackerState;
+    /** Seconds spent away from Mid (`Crosslower`) without being in combat (for 1-min tournament rule). */
+    awayFromMidSeconds?: number;
 }
 
 export type AtomicMovementType = "STAND" | "WALK" | "SPRINT";

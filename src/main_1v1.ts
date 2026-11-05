@@ -403,6 +403,12 @@ export default function main(): void {
         lastRangeWarningTs = bot.flash.get<number>("world.actionRangeSpamTS") ?? 0;
     } catch (_) {}
 
+    // Tournament 1-Minute Mid Rule Tracker:
+    // Players may tactically enter Captain, Restorer, or Brawler rooms to kite/stall cooldowns,
+    // but must touch Mid (Crosslower) at least once every 60 seconds if not engaged in combat!
+    let awayFromMidMs = 0;
+    let lastMidTimerTick = Date.now();
+
     bot.events.on("extensionPacket", (pkt: any) => {
         try {
             const dataObj = pkt?.params?.dataObj;
@@ -433,11 +439,48 @@ export default function main(): void {
             wave.opponentKilledInWave = false;
             wave.canReturnToSafezone = false;
             engagedOpponentName = null;
+            awayFromMidMs = 0;
+            lastMidTimerTick = Date.now();
             bot.sleep(500);
             continue;
         }
 
-        const obs = extractObservation(allyNames, wave, isRedTeam ? "red" : "blue");
+        const now = Date.now();
+        const dt = Math.max(0, now - lastMidTimerTick);
+        lastMidTimerTick = now;
+
+        const currentCellLower = bot.player.cell?.toLowerCase() ?? "";
+        const isInMid = currentCellLower === "crosslower";
+        const isInSz = currentCellLower === "enter0" || currentCellLower === "enter1";
+        const isInCombat = bot.player.inCombat;
+
+        if (isInMid) {
+            if (awayFromMidMs > 0) {
+                bot.log("[TournamentRule] Mid (Crosslower) touched! 60s stall timer reset.");
+            }
+            awayFromMidMs = 0;
+        } else if (isInCombat) {
+            // Active combat anywhere in the arena suspends/resets the stall timer
+            awayFromMidMs = 0;
+        } else if (isInSz) {
+            // Respawn / safezone recovery does not count toward illegal stall
+            awayFromMidMs = 0;
+        } else {
+            awayFromMidMs += dt;
+            // Diagnostic warnings at 45s and 60s
+            if (awayFromMidMs >= 45000 && awayFromMidMs - dt < 45000) {
+                bot.log(`[TournamentRule] ⚠️ 45s away from Mid without combat! Returning to Mid to prevent stall violation.`);
+            } else if (awayFromMidMs >= 60000 && awayFromMidMs - dt < 60000) {
+                bot.log(`[TournamentRule] ⚠️ 60s Mid rule limit reached! Prioritizing immediate Mid contest.`);
+            }
+        }
+
+        const obs = extractObservation(
+            allyNames,
+            wave,
+            isRedTeam ? "red" : "blue",
+            awayFromMidMs / 1000.0,
+        );
 
         // Anti-Roofing Safeguard: If avatar is caught on ceiling rafters (y < 180) or off-screen bottom (y > 530)
         if (bot.player.y < 180 || bot.player.y > 530) {

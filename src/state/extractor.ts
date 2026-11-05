@@ -162,6 +162,7 @@ export function extractObservation(
     allyNames: ReadonlySet<string>,
     wave: WaveTrackerState,
     selfTeam?: "blue" | "red",
+    awayFromMidSeconds?: number,
 ): CombatObservation {
     const selfName = bot.player.username;
     const selfMaxHp = Math.max(1, bot.player.maxHealth);
@@ -267,5 +268,6 @@ export function extractObservation(
         cellMonsters: bot.monsters.currentMonsters,
 
         wave: { ...wave },
+        awayFromMidSeconds: awayFromMidSeconds ?? 0.0,
     };
 }
