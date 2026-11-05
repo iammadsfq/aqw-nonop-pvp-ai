@@ -111,6 +111,76 @@ export function recordMapSnapshot(): void {
     );
 }
 
+/**
+ * Hooks into incoming SmartFox extension packets and outgoing client packets
+ * to capture live server combat traces, skill activations, and player movements.
+ */
+export function attachCombatTelemetryListeners(): () => void {
+    const unsubscribeExt = bot.events.on("extensionPacket", (packet: any) => {
+        try {
+            const dataObj = packet?.params?.dataObj ?? packet;
+            if (!dataObj || typeof dataObj !== "object") return;
+
+            const cmd = dataObj.cmd as string | undefined;
+            if (
+                cmd === "ct" ||
+                cmd === "sAct" ||
+                cmd === "uotls" ||
+                cmd === "pvpScore" ||
+                cmd === "PVPS" ||
+                dataObj.sarsa !== undefined ||
+                dataObj.a !== undefined
+            ) {
+                writeTelemetry("combat_trace", dataObj);
+            }
+        } catch (err) {
+            bot.log(`[Telemetry] Packet parse error: ${String(err)}`);
+        }
+    });
+
+    const unsubscribeSent = bot.events.on("packetSent", (rawPacket: string) => {
+        if (
+            rawPacket.includes("%gar%") ||
+            rawPacket.includes("%restRequest%") ||
+            rawPacket.includes("%aggroMon%")
+        ) {
+            writeTelemetry("player_sent_action", {
+                packet: rawPacket,
+                selfHp: bot.player.health,
+                selfMp: bot.player.mana,
+                selfSp: getStamina(),
+                selfX: bot.player.x,
+                selfY: bot.player.y,
+                selfAuras: bot.self.snapshots,
+                targetAuras: bot.target.snapshots,
+            });
+        } else if (rawPacket.includes("%mv%")) {
+            const parts = rawPacket.split("%").filter((s) => s.length > 0);
+            const mvIdx = parts.indexOf("mv");
+            const targetX = mvIdx >= 0 ? Number(parts[mvIdx + 2]) : null;
+            const targetY = mvIdx >= 0 ? Number(parts[mvIdx + 3]) : null;
+            const speed = mvIdx >= 0 ? Number(parts[mvIdx + 4]) : null;
+            writeTelemetry("movement_packet", {
+                packet: rawPacket,
+                fromX: bot.player.x,
+                fromY: bot.player.y,
+                targetX,
+                targetY,
+                speed,
+                isSprint: speed !== null && speed > 8,
+                selfSp: getStamina(),
+                inCombat: bot.player.inCombat,
+            });
+        }
+    });
+
+    bot.log("[Telemetry] Live Pro-Match Telemetry hooks active! Recording to ~/.local/share/Turu/army/aqw_combat_telemetry.log");
+    return () => {
+        try { unsubscribeExt(); } catch (_) {}
+        try { unsubscribeSent(); } catch (_) {}
+    };
+}
+
 export default function main(): void {
     bot.log("==========================================================");
     bot.log("[AQW Telemetry Recorder] Waiting for player login & load...");
@@ -134,66 +204,7 @@ export default function main(): void {
     let lastRecordedMap = bot.map.name.toLowerCase();
 
     // 1. Hook into incoming server packets (specifically `ct` combat trace & `sAct` skill packets)
-    const unsubscribeExt = bot.events.on("extensionPacket", (packet: any) => {
-        try {
-            const dataObj = packet?.params?.dataObj ?? packet;
-            if (!dataObj || typeof dataObj !== "object") return;
-
-            const cmd = dataObj.cmd as string | undefined;
-            // Record `ct` (Combat Trace), `sAct` (Skill Definitions), `uotls` (Stat/HP/MP updates), and PvP score packets
-            if (
-                cmd === "ct" ||
-                cmd === "sAct" ||
-                cmd === "uotls" ||
-                cmd === "pvpScore" ||
-                cmd === "PVPS" ||
-                dataObj.sarsa !== undefined ||
-                dataObj.a !== undefined
-            ) {
-                writeTelemetry("combat_trace", dataObj);
-            }
-        } catch (err) {
-            bot.log(`[Telemetry] Packet parse error: ${String(err)}`);
-        }
-    });
-
-    // 2. Hook into outgoing client packets (skill activations, rest requests, target switches, and movement/sprint)
-    const unsubscribeSent = bot.events.on("packetSent", (rawPacket: string) => {
-        if (
-            rawPacket.includes("%gar%") ||
-            rawPacket.includes("%restRequest%") ||
-            rawPacket.includes("%aggroMon%")
-        ) {
-            writeTelemetry("player_sent_action", {
-                packet: rawPacket,
-                selfHp: bot.player.health,
-                selfMp: bot.player.mana,
-                selfSp: getStamina(),
-                selfX: bot.player.x,
-                selfY: bot.player.y,
-                selfAuras: bot.self.snapshots,
-                targetAuras: bot.target.snapshots,
-            });
-        } else if (rawPacket.includes("%mv%")) {
-            // Format: %xt%zm%mv%roomId%x%y%speed%
-            const parts = rawPacket.split("%").filter((s) => s.length > 0);
-            const mvIdx = parts.indexOf("mv");
-            const targetX = mvIdx >= 0 ? Number(parts[mvIdx + 2]) : null;
-            const targetY = mvIdx >= 0 ? Number(parts[mvIdx + 3]) : null;
-            const speed = mvIdx >= 0 ? Number(parts[mvIdx + 4]) : null;
-            writeTelemetry("movement_packet", {
-                packet: rawPacket,
-                fromX: bot.player.x,
-                fromY: bot.player.y,
-                targetX,
-                targetY,
-                speed,
-                isSprint: speed !== null && speed > 8,
-                selfSp: getStamina(),
-                inCombat: bot.player.inCombat,
-            });
-        }
-    });
+    const detachListeners = attachCombatTelemetryListeners();
 
     bot.log("[Telemetry] Packet hooks active! Recording to ~/.local/share/Turu/army/aqw_combat_telemetry.log");
 
@@ -292,8 +303,7 @@ export default function main(): void {
             bot.sleep(100);
         }
     } finally {
-        unsubscribeExt();
-        unsubscribeSent();
+        detachListeners();
         bot.log("[Telemetry] Stopped recording.");
     }
 }

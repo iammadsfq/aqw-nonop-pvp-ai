@@ -328,21 +328,23 @@ export function inferBattleWarriorDecision(
     let targetCell: string | undefined = undefined;
     let targetPad: string | undefined = undefined;
 
-    const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
-    const hitDoor = currentScreen?.doors.find((d) => {
-        const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= d.yMax;
-        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < 60;
-        return inBox || nearAim;
-    });
+    if (chosenMoveType !== "STAND") {
+        const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
+        const hitDoor = currentScreen?.doors.find((d) => {
+            const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= d.yMax;
+            const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < 60;
+            return inBox || nearAim;
+        });
 
-    if (hitDoor) {
-        targetCell = hitDoor.targetCell;
-        targetPad = hitDoor.targetPad;
-    } else {
-        const trajHit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
-        if (trajHit) {
-            targetCell = trajHit.door.targetCell;
-            targetPad = trajHit.door.targetPad;
+        if (hitDoor) {
+            targetCell = hitDoor.targetCell;
+            targetPad = hitDoor.targetPad;
+        } else {
+            const trajHit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
+            if (trajHit) {
+                targetCell = trajHit.door.targetCell;
+                targetPad = trajHit.door.targetPad;
+            }
         }
     }
 

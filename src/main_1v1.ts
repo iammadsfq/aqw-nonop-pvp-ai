@@ -18,6 +18,7 @@ import { createMatchConfig } from "./config/match_config";
 import { runNonOpPreflightCheck } from "./rules/preflight";
 import { applyRuleShield, enforceNpcProtectionGuard } from "./rules/shield";
 import { extractObservation } from "./state/extractor";
+import { attachCombatTelemetryListeners } from "./telemetry/combat_recorder";
 import type { CombatDecision, CombatObservation, WaveTrackerState } from "./state/types";
 
 declare const process: { argv?: string[]; env?: Record<string, string> } | undefined;
@@ -162,7 +163,11 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
     const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
 
     // Find target door: only engage DoorSync when an intentional screen transition is commanded (movement.targetCell)
-    const targetDoor = movement.targetCell
+    // and avatar is NOT actively engaged in combat with an opponent in the same cell!
+    const inCombatWithOpp = Boolean(
+        obs.opponents.some((p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive),
+    );
+    const targetDoor = (movement.targetCell && !inCombatWithOpp)
         ? currentScreen?.doors.find(
               (d) => d.targetCell.toLowerCase() === movement.targetCell!.toLowerCase(),
           )
@@ -322,6 +327,9 @@ export default function main(): void {
         bot.wait.forMapLoad("bludrutbrawl", 30);
         bot.sleep(1000);
     }
+
+    // Attach live telemetry listeners to capture pro-player demonstration data
+    attachCombatTelemetryListeners();
 
     // Inspect server-assigned PvP Faction in Flash (0 = Blue, 1 = Red)
     // to detect if server overrode team or if player was placed in opposite safezone
