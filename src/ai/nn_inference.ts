@@ -239,13 +239,6 @@ export function inferBattleWarriorDecision(
     const sameCell = Boolean(oppInCell && oppInCell.alive);
     const safeNpc = findSafeManaTapNpc(obs);
 
-    const { nextDoor: rawNextDoor } = findTargetNavCellAndDoor(
-        obs.currentCell,
-        obs.opponents,
-        obs.awayFromMidSeconds,
-    );
-    const nextDoor = !sameCell ? rawNextDoor : null;
-
     // Shared Neural Backbone forward pass
     const x = buildObservationVector28(obs);
     const h1 = denseTanh(x, policy.w1, policy.b1);
@@ -312,55 +305,36 @@ export function inferBattleWarriorDecision(
     const moveTypeMap: AtomicMovementType[] = ["STAND", "WALK", "SPRINT"];
     const chosenMoveType: AtomicMovementType = moveTypeMap[bestMoveIdx] ?? "STAND";
 
-    // Head 3: 100% Unified Atomic Target Coordinates regression (Sigmoid in [0, 1])
+    // Head 3: 100% Pure Atomic Neural Network Target Coordinates (Continuous Sigmoid in [0, 1])
     const coordRaw = denseLinear(h2, policy.wCoord, policy.bCoord);
     const normX = sigmoid(coordRaw[0] ?? 0.0);
     const normY = sigmoid(coordRaw[1] ?? 0.0);
 
-    let targetX = Math.round(40.0 + normX * 880.0);
-    let targetY = Math.round(240.0 + normY * 260.0);
+    const targetX = Math.round(40.0 + normX * 880.0);
+    const targetY = Math.round(240.0 + normY * 260.0);
 
-    // 100% Pure Atomic Sensorimotor Interaction:
-    // The neural network outputs continuous ground coordinates (targetX, targetY).
-    // If the chosen coordinates or movement trajectory reach a physical door trigger,
-    // the door naturally triggers the screen transition!
+    // Physical Door Trigger Collision (matching Bludrut1v1Env._move_fighter):
+    // Pure physics interaction: If the avatar's chosen continuous coordinates or trajectory
+    // touch a physical door trigger area, the door naturally triggers the screen transition!
+    // No hardcoded routing fallback or coordinate overriding is permitted.
     let targetCell: string | undefined = undefined;
     let targetPad: string | undefined = undefined;
 
     const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
     const hitDoor = currentScreen?.doors.find((d) => {
-        const isCorridorDoor = (d.xMin === 0 || d.xMax >= 950);
-        const effYMax = isCorridorDoor ? Math.max(d.yMax, 420) : d.yMax;
-        const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= effYMax;
-        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < (isCorridorDoor ? 85 : 55);
-        // When roaming (!sameCell), if avatar targets toward screen exit boundary, engage corridor reach:
-        const corridorReach = !sameCell && ((d.xMin === 0 && targetX <= 320) || (d.xMax >= 950 && targetX >= 640));
-        return inBox || nearAim || corridorReach;
+        const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= d.yMax;
+        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < 60;
+        return inBox || nearAim;
     });
 
     if (hitDoor) {
         targetCell = hitDoor.targetCell;
         targetPad = hitDoor.targetPad;
-        if (!sameCell) {
-            targetX = hitDoor.aimX;
-            targetY = hitDoor.aimY;
-        }
     } else {
         const trajHit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
         if (trajHit) {
             targetCell = trajHit.door.targetCell;
             targetPad = trajHit.door.targetPad;
-            if (!sameCell) {
-                targetX = trajHit.door.aimX;
-                targetY = trajHit.door.aimY;
-            }
-        } else if (!sameCell && nextDoor && chosenMoveType !== "STAND") {
-            // Roaming safety guarantee: If moving across screens and continuous coordinates missed door trigger box,
-            // route through nextDoor to prevent stalling in rooms:
-            targetCell = nextDoor.targetCell;
-            targetPad = nextDoor.targetPad;
-            targetX = nextDoor.aimX;
-            targetY = nextDoor.aimY;
         }
     }
 
