@@ -30,7 +30,22 @@ import {
     type CompoundAtomicPolicySpec,
 } from "./trained_policy_weights";
 
-const MELEE_RANGE = 301.0;
+/**
+ * Authentic AQW PvP Melee weapon & skill ranges (reverse-engineered from World.as:9398).
+ * In Flash AQW bludrutbrawl PvP:
+ * - Horizontal range: abs(dx) <= 301 * 1.15 = 346.15px (we enforce <= 160px for consistent, clean contact)
+ * - Vertical elevation limit: abs(dy) <= 30 * 1.15 = 34.5px (~38px max tolerance)
+ * Any target with abs(dy) > 38px (e.g. upper platform vs ground) triggers Flash's
+ * "You are out of range! Move closer to your target!" error.
+ */
+export const MELEE_MAX_DX = 160.0;
+export const MELEE_MAX_DY = 38.0;
+
+export function isMeleeInRange(selfX: number, selfY: number, oppX: number, oppY: number): boolean {
+    const dx = Math.abs(selfX - oppX);
+    const dy = Math.abs(selfY - oppY);
+    return dx <= MELEE_MAX_DX && dy <= MELEE_MAX_DY;
+}
 
 /**
  * Encodes the live Turu `CombatObservation` into the 28-dimensional normalized
@@ -51,7 +66,7 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
         sameCell && opp
             ? Math.hypot(obs.selfX - opp.x, obs.selfY - opp.y)
             : 1000.0;
-    const inMelee = sameCell && dist <= MELEE_RANGE ? 1.0 : 0.0;
+    const inMelee = sameCell && opp && isMeleeInRange(obs.selfX, obs.selfY, opp.x, opp.y) ? 1.0 : 0.0;
 
     const screenIdx = Math.max(
         0,
@@ -195,8 +210,7 @@ export function inferBattleWarriorDecision(
     const oppInCell = obs.opponents.find(
         (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
     );
-    const dist = oppInCell ? Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y) : 9999.0;
-    const inMelee = oppInCell ? dist <= MELEE_RANGE : false;
+    const inMelee = Boolean(oppInCell && isMeleeInRange(obs.selfX, obs.selfY, oppInCell.x, oppInCell.y));
     const sameCell = Boolean(oppInCell && oppInCell.alive);
     const safeNpc = findSafeManaTapNpc(obs);
 
@@ -283,6 +297,8 @@ export function inferBattleWarriorDecision(
 
     const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
     const hitDoor = currentScreen?.doors.find((d) => {
+        // In 1v1 PvP, Captain rooms are strictly excluded:
+        if (d.targetCell === "Captain0" || d.targetCell === "Captain1") return false;
         const isCorridorDoor = (d.xMin === 0 || d.xMax >= 950);
         const effYMax = isCorridorDoor ? Math.max(d.yMax, 420) : d.yMax;
         const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= effYMax;

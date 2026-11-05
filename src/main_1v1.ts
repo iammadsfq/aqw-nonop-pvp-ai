@@ -171,13 +171,12 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
     const now = Date.now();
     const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
 
-    // Find target door: either explicitly commanded in movement.targetCell,
-    // or physically nearby in the current room
-    const targetDoor = currentScreen?.doors.find((d) =>
-        (movement.targetCell && d.targetCell.toLowerCase() === movement.targetCell.toLowerCase()) ||
-        (obs.selfX >= d.xMin - 25 && obs.selfX <= d.xMax + 25 && obs.selfY >= d.yMin - 25 && obs.selfY <= d.yMax + 25) ||
-        Math.hypot(obs.selfX - d.aimX, obs.selfY - d.aimY) < 65,
-    );
+    // Find target door: only engage DoorSync when an intentional screen transition is commanded (movement.targetCell)
+    const targetDoor = movement.targetCell
+        ? currentScreen?.doors.find(
+              (d) => d.targetCell.toLowerCase() === movement.targetCell!.toLowerCase(),
+          )
+        : null;
 
     if (targetDoor) {
         if (targetDoor.targetCell !== activeDoorCell) {
@@ -195,11 +194,11 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             obs.selfY <= targetDoor.yMax + 15;
         const atDoor = inDoorBox || distToDoorAim < 60;
 
-        // Jika sampai di pintu dan tertahan > 600ms tanpa pindah room (desync server)
+        // Jika sampai di pintu dan tertahan >= 3000ms tanpa pindah room (desync server)
         if (atDoor && !isSteppingDown) {
             if (doorArrivedAt === 0) {
                 doorArrivedAt = now;
-            } else if (now - doorArrivedAt > 600) {
+            } else if (now - doorArrivedAt > 3000) {
                 if (stepDownAttempts < 2) {
                     stepDownAttempts++;
                     isSteppingDown = true;
@@ -398,7 +397,37 @@ export default function main(): void {
     const allyNames = new Set<string>();
     let engagedOpponentName: string | null = null;
 
+    // Diagnostic Game Warning Monitor: tracks client Flash range errors and server warning packets
+    let lastRangeWarningTs = 0;
+    try {
+        lastRangeWarningTs = bot.flash.get<number>("world.actionRangeSpamTS") ?? 0;
+    } catch (_) {}
+
+    bot.events.on("extensionPacket", (pkt: any) => {
+        try {
+            const dataObj = pkt?.params?.dataObj;
+            if (Array.isArray(dataObj) && dataObj[0] === "warning") {
+                const msg = dataObj[2] ?? dataObj[1] ?? JSON.stringify(dataObj);
+                bot.log(`[GameWarning] [Server] ${msg}`);
+            } else if (pkt?.params?.type === "str") {
+                const str = String(pkt.params.dataObj);
+                if (str.includes("warning") || str.includes("range")) {
+                    bot.log(`[GameWarning] [Server] ${str}`);
+                }
+            }
+        } catch (_) {}
+    });
+
     while (!bot.shouldExit && wave.teamKills < config.killTarget) {
+        // Poll Flash client-side range check warnings (World.as:9086)
+        try {
+            const spamTs = bot.flash.get<number>("world.actionRangeSpamTS");
+            if (typeof spamTs === "number" && spamTs > lastRangeWarningTs) {
+                lastRangeWarningTs = spamTs;
+                bot.log("[GameWarning] You are out of range! Move closer to your target.");
+            }
+        } catch (_) {}
+
         if (!bot.player.alive) {
             wave.waveActive = false;
             wave.opponentKilledInWave = false;

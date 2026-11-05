@@ -739,6 +739,12 @@ export function findNextDoorTowardCell(
         ) {
             continue;
         }
+        if (
+            (d.targetCell === "Captain0" || d.targetCell === "Captain1") &&
+            d.targetCell.toLowerCase() !== goalCell.toLowerCase()
+        ) {
+            continue;
+        }
         queue.push({ firstDoor: d, currentCell: d.targetCell });
     }
 
@@ -758,6 +764,12 @@ export function findNextDoorTowardCell(
             if (visited.has(nKey)) continue;
             if (
                 (nd.targetCell === "Enter0" || nd.targetCell === "Enter1") &&
+                nKey !== goalCell.toLowerCase()
+            ) {
+                continue;
+            }
+            if (
+                (nd.targetCell === "Captain0" || nd.targetCell === "Captain1") &&
                 nKey !== goalCell.toLowerCase()
             ) {
                 continue;
@@ -814,6 +826,9 @@ export function checkTrajectoryDoorCollision(
     let bestHit: { door: DoorTriggerArea; hitT: number; hitX: number; hitY: number } | null = null;
 
     for (const door of screen.doors) {
+        if (door.targetCell === "Captain0" || door.targetCell === "Captain1") {
+            continue;
+        }
         let tMin = 0;
         let tMax = 1;
         const effYMax = (door.xMin === 0 || door.xMax >= 950) ? Math.max(door.yMax, 420) : door.yMax;

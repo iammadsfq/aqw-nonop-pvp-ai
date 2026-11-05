@@ -49,7 +49,13 @@ AA_HIT_MP_GAIN = 6.0
 AA_CRIT_MP_GAIN = 9.0
 ON_HIT_TAKEN_MP_GAIN = 3.0
 
-MELEE_RANGE = 301.0
+MELEE_MAX_DX = 160.0
+MELEE_MAX_DY = 38.0
+MELEE_RANGE = 160.0
+
+
+def is_in_melee(x1: float, y1: float, x2: float, y2: float) -> bool:
+    return abs(x1 - x2) <= MELEE_MAX_DX and abs(y1 - y2) <= MELEE_MAX_DY
 
 
 @dataclass(frozen=True)
@@ -626,7 +632,7 @@ class Bludrut1v1Env(gym.Env):
     def _get_obs(self, me: FighterState, opp: FighterState) -> np.ndarray:
         same_cell = 1.0 if me.cell == opp.cell else 0.0
         dist = math.hypot(me.x - opp.x, me.y - opp.y) if same_cell else 1000.0
-        in_melee = 1.0 if (same_cell and dist <= MELEE_RANGE) else 0.0
+        in_melee = 1.0 if (same_cell and is_in_melee(me.x, me.y, opp.x, opp.y)) else 0.0
 
         me_screen = SCREEN_BY_CELL[me.cell]
         opp_screen = SCREEN_BY_CELL[opp.cell]
@@ -887,7 +893,7 @@ class Bludrut1v1Env(gym.Env):
                     f.prepared_strike_stacks = 2
                 else:
                     # Hostile melee skills (a1, a2, a4) require opponent in melee range
-                    if same_cell and dist <= MELEE_RANGE:
+                    if same_cell and is_in_melee(f.x, f.y, opp.x, opp.y):
                         f.target_kind = "opponent"
                         f.mp -= self.skill_mp[skill_idx]
                         f.cooldowns[skill_idx] = self.skill_cds[skill_idx]
@@ -1006,7 +1012,7 @@ class Bludrut1v1Env(gym.Env):
                     screen = SCREEN_BY_CELL.get(f.cell)
                     has_safe_npc = screen and screen.npc_max_hp > 0 and self.npc_hp.get(f.cell, 0.0) >= 2000.0
 
-                    if same_cell and dist <= MELEE_RANGE:
+                    if same_cell and is_in_melee(f.x, f.y, opp.x, opp.y):
                         f.target_kind = "opponent"
                         f.mp -= self.skill_mp[skill_idx]
                         f.cooldowns[skill_idx] = self.skill_cds[skill_idx]
@@ -1046,7 +1052,7 @@ class Bludrut1v1Env(gym.Env):
 
         # Automatic Auto Attack when ready
         if f.cooldowns[0] <= 0.0 and f.stun_rem <= 0.0:
-            if same_cell and dist <= MELEE_RANGE:
+            if same_cell and is_in_melee(f.x, f.y, opp.x, opp.y):
                 f.target_kind = "opponent"
                 f.cooldowns[0] = self.skill_cds[0]
                 f.in_combat = True
@@ -1179,7 +1185,7 @@ class Bludrut1v1Env(gym.Env):
             return 8 if opp.sp >= 50.0 else 7
 
         # 4. If Blue IS stunned OR Red is ready to land Stun:
-        if dist > MELEE_RANGE:
+        if not is_in_melee(opp.x, opp.y, ag.x, ag.y):
             # Approach Blue into melee, WALK ONLY (preserve SP for retreat)
             return 1
 
