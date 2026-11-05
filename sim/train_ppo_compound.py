@@ -139,6 +139,8 @@ class CompoundActorCritic(nn.Module):
         coord_std = self.coord_log_std.exp().expand_as(coords_mu)
         dist_coord = Normal(coords_mu, coord_std)
 
+        same_room = (x[:, 23] > 0.5)
+
         if deterministic:
             c_chosen = masked_combat.argmax(dim=-1)
             m_chosen = masked_move.argmax(dim=-1)
@@ -146,17 +148,18 @@ class CompoundActorCritic(nn.Module):
         else:
             c_chosen = dist_combat.sample() if combat_act is None else combat_act
             m_chosen = dist_move.sample() if move_act is None else move_act
-            coords_chosen = (
-                torch.clamp(dist_coord.sample(), 0.0, 1.0)
-                if coords_act is None
-                else coords_act
-            )
+            if coords_act is not None:
+                coords_chosen = coords_act
+            else:
+                sampled_coords = torch.clamp(dist_coord.sample(), 0.0, 1.0)
+                coords_chosen = torch.where(same_room.unsqueeze(-1), sampled_coords, coords_mu)
 
         logp_combat = dist_combat.log_prob(c_chosen)
         logp_move = dist_move.log_prob(m_chosen)
         logp_coord = dist_coord.log_prob(coords_chosen).sum(dim=-1)
+        logp_coord_masked = torch.where(same_room, logp_coord, torch.zeros_like(logp_coord))
 
-        total_logp = logp_combat + logp_move + logp_coord
+        total_logp = logp_combat + logp_move + logp_coord_masked
 
         entropy = dist_combat.entropy() + dist_move.entropy()
         value = self.critic_head(h2).squeeze(-1)
@@ -916,7 +919,7 @@ def train_ppo_compound(
                 else:
                     spatial_anchor_loss = 0.0
 
-                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 30.0 * spatial_anchor_loss
+                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 50.0 * spatial_anchor_loss
 
                 optimizer.zero_grad()
                 loss.backward()

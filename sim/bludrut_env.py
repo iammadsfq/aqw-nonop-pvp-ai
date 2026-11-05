@@ -641,13 +641,15 @@ class Bludrut1v1Env(gym.Env):
         has_safe_npc = 1.0 if (npc_max > 0 and npc_cur_hp >= 2000.0 and (npc_cur_hp / npc_max) >= 0.35) else 0.0
 
         # Strategic Navigation Objective (Symmetric for Blue & Red):
-        own_sz = "Enter0" if me.team == "blue" else "Enter1"
+        enemy_b3 = "Morale1C" if me.team == "blue" else "Morale0C"
         opp_in_arena = (opp.cell not in ("Enter0", "Enter1", "Wait") and opp.hp > 0.0)
+        opp_in_sz = (opp.cell in ("Enter0", "Enter1"))
 
-        if self.wave_won:
-            target_nav_cell = own_sz
-        elif opp_in_arena:
+        if opp_in_arena:
             target_nav_cell = opp.cell
+        elif opp_in_sz:
+            # When opponent is trapped/respawning in SZ, navigate toward enemy B3 (spawn-camping door)
+            target_nav_cell = enemy_b3
         else:
             target_nav_cell = "Crosslower"
 
@@ -1341,11 +1343,7 @@ class Bludrut1v1Env(gym.Env):
             if self.agent.x < 70.0 or self.agent.x > 890.0 or self.agent.y < 265.0 or self.agent.y > 475.0:
                 r_tactical -= 0.02
 
-        # 8c. Mid Objective & Anti-Stalling / 1-Minute Tournament Rule Enforcement
-        # In competitive BludrutBrawl, players must contest Mid (Crosslower) within 60s if out of combat.
-        # Camping in B3/B2/SZ is toxic and penalized heavily!
-        r_mid = 0.0
-        r_stall = 0.0
+        # 8c. Combat State Detection
         is_combat = (
             self.agent.in_combat or
             self.enemy.in_combat or
@@ -1354,11 +1352,93 @@ class Bludrut1v1Env(gym.Env):
             (self.agent.cell == self.enemy.cell and dist <= 300.0)
         )
 
+        is_blue = (self.agent.team == "blue")
+        opp_in_sz = (self.enemy.cell in ("Enter0", "Enter1"))
+
+        # Territory mapping relative to agent's team
+        own_sz = "Enter0" if is_blue else "Enter1"
+        own_capt = "Captain0" if is_blue else "Captain1"
+        own_b3 = "Morale0C" if is_blue else "Morale1C"
+        own_b2 = "Morale0B" if is_blue else "Morale1B"
+        own_b1 = "Morale0A" if is_blue else "Morale1A"
+        own_r1 = "Resource0A" if is_blue else "Resource1A"
+        own_r2 = "Resource0B" if is_blue else "Resource1B"
+
+        enemy_b1 = "Morale1A" if is_blue else "Morale0A"
+        enemy_b2 = "Morale1B" if is_blue else "Morale0B"
+        enemy_b3 = "Morale1C" if is_blue else "Morale0C"
+        enemy_capt = "Captain1" if is_blue else "Captain0"
+        enemy_r1 = "Resource1A" if is_blue else "Resource0A"
+        enemy_r2 = "Resource1B" if is_blue else "Resource0B"
+
+        # 8d. Micro-Penalty Out of Combat (OOC)
+        # Ground truth: 60s camping in B3 = -10.0 penalty (exact equivalent of 1 kill loss)
+        # Unit penalty per step = (10.0 / 60.0 / 3.0) * DT_SEC = (10.0 / 180.0) * 0.1 = 1.0 / 180.0
+        r_ooc = 0.0
+        if not is_combat:
+            UNIT_OOC_STEP = 1.0 / 180.0  # ~0.005556 per step per unit scale
+            ooc_scale = 0.0
+
+            if self.agent.cell == own_sz:
+                ooc_scale = 4.0
+            elif self.agent.cell == own_capt:
+                ooc_scale = 4.0
+            elif self.agent.cell == own_b3:
+                ooc_scale = 3.0
+            elif self.agent.cell == own_b2:
+                ooc_scale = 2.0
+            elif self.agent.cell == own_b1:
+                ooc_scale = 1.0
+            elif self.agent.cell in (own_r1, enemy_r1):
+                ooc_scale = 2.0
+            elif self.agent.cell in (own_r2, enemy_r2):
+                ooc_scale = 3.0
+            elif self.agent.cell == "Crossupper":
+                ooc_scale = 0.5
+            elif self.agent.cell == "Crosslower":
+                ooc_scale = 0.0  # Mid is objective, penalty-free
+            elif self.agent.cell in (enemy_b1, enemy_b2, enemy_b3, enemy_capt):
+                if opp_in_sz:
+                    # Spawn-camping / sieging while opponent is trapped/respawning in SZ
+                    ooc_scale = 0.0
+                else:
+                    # Opponent is in Mid / active arena, but agent is lingering in empty enemy base
+                    if self.agent.cell == enemy_b1:
+                        ooc_scale = 1.0
+                    elif self.agent.cell == enemy_b2:
+                        ooc_scale = 2.0
+                    elif self.agent.cell == enemy_b3:
+                        ooc_scale = 3.0
+                    elif self.agent.cell == enemy_capt:
+                        ooc_scale = 4.0
+
+            r_ooc = ooc_scale * UNIT_OOC_STEP
+
+        # 8e. Micro-Reward in Enemy Territory (Invasion / Pressure)
+        # Reward active invasion / spawn pressure when opponent is in SZ OR during combat in enemy territory
+        r_invade = 0.0
+        UNIT_INVADE_STEP = 0.0025  # +0.025 per second
+        if self.agent.cell in (enemy_b1, enemy_b2, enemy_b3, enemy_capt):
+            if opp_in_sz or is_combat:
+                inv_scale = 1.0
+                if self.agent.cell == enemy_b1:
+                    inv_scale = 1.0
+                elif self.agent.cell == enemy_b2:
+                    inv_scale = 1.25
+                elif self.agent.cell == enemy_b3:
+                    inv_scale = 1.5
+                elif self.agent.cell == enemy_capt:
+                    inv_scale = 1.5
+                r_invade = inv_scale * UNIT_INVADE_STEP
+
+        # 8f. Mid Objective & 1-Minute Tournament Rule Enforcement
+        r_mid = 0.0
+        r_stall = 0.0
         if self.agent.cell == "Crosslower":
             self.agent_no_combat_away_from_mid_time = 0.0
             if not self.agent_entered_mid:
                 self.agent_entered_mid = True
-                r_mid += 1.0  # Big arrival dividend for reaching & contesting Mid
+                r_mid += 1.0  # Arrival dividend for contesting Mid
             r_mid += 0.01  # Mid presence control dividend
         elif is_combat:
             self.agent_no_combat_away_from_mid_time = 0.0
@@ -1366,20 +1446,29 @@ class Bludrut1v1Env(gym.Env):
             self.agent_entered_mid = False
             self.agent_no_combat_away_from_mid_time += DT_SEC
 
-            # Stalling penalty:
-            # 0..20s: Grace traversal period from Safezone/B3 to Mid
-            # 20..60s: Escalating anti-camping shaping penalty
-            if self.agent_no_combat_away_from_mid_time > 20.0:
-                elapsed_excess = self.agent_no_combat_away_from_mid_time - 20.0
-                r_stall += 0.03 * min(1.0, elapsed_excess / 40.0)
-
-            # > 60s: CRITICAL 1-MINUTE TOURNAMENT RULE VIOLATION (TOXIC CAMPING)
+            # Critical 1-minute tournament rule violation:
+            # Over 60 seconds away from Mid without combat = heavy stalling DQ penalty (-5.0 / sec)
             if self.agent_no_combat_away_from_mid_time > 60.0:
                 r_stall += 0.50  # -5.0 penalty per second!
                 if int(self.agent_no_combat_away_from_mid_time * 10) % 50 == 0:
-                    self.last_kill_event = f"⚠️ [1-MIN RULE VIOLATION] Blue agent camping away from Mid ({self.agent_no_combat_away_from_mid_time:.1f}s)! Heavy stalling penalty applied."
+                    self.last_kill_event = f"⚠️ [1-MIN RULE VIOLATION] Away from Mid without combat ({self.agent_no_combat_away_from_mid_time:.1f}s)! Heavy stalling penalty applied."
 
-        reward = r_ehp + r_mitigation + r_stun + r_nav + f_mana + f_stamina + r_time + r_sz + r_tactical + r_mid - r_stall - pen_agent
+        reward = (
+            r_ehp +
+            r_mitigation +
+            r_stun +
+            r_nav +
+            f_mana +
+            f_stamina +
+            r_time +
+            r_sz +
+            r_tactical +
+            r_mid +
+            r_invade -
+            r_ooc -
+            r_stall -
+            pen_agent
+        )
 
         terminated = False
         truncated = False

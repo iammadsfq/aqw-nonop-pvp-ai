@@ -51,8 +51,14 @@ export function isMeleeInRange(selfX: number, selfY: number, oppX: number, oppY:
 export function findTargetNavCellAndDoor(
     currentCell: string,
     opponents: readonly { alive: boolean; cell?: string }[],
+    selfTeam?: string,
 ): { targetNavCell: string; nextDoor: DoorTriggerArea | null } {
-    const anyOpp = opponents.find(
+    const isBlueTeam = selfTeam
+        ? selfTeam === "blue"
+        : (currentCell.toLowerCase().includes("0") || currentCell.toLowerCase() === "enter0" || !currentCell.toLowerCase().includes("1"));
+    const enemyB3 = isBlueTeam ? "Morale1C" : "Morale0C";
+
+    const oppInArena = opponents.find(
         (p) =>
             p.alive &&
             p.cell &&
@@ -63,9 +69,19 @@ export function findTargetNavCellAndDoor(
             p.cell.toLowerCase() !== "wait",
     );
 
+    const oppInSz = opponents.some(
+        (p) =>
+            p.alive &&
+            p.cell &&
+            (p.cell.toLowerCase() === "enter0" || p.cell.toLowerCase() === "enter1"),
+    );
+
     let targetNavCell = "Crosslower";
-    if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== currentCell.toLowerCase()) {
-        targetNavCell = anyOpp.cell;
+    if (oppInArena && oppInArena.cell && oppInArena.cell.toLowerCase() !== currentCell.toLowerCase()) {
+        targetNavCell = oppInArena.cell;
+    } else if (oppInSz) {
+        // When opponent is in Safezone, target room right outside their Safezone (spawn camping door)
+        targetNavCell = enemyB3;
     } else {
         targetNavCell = "Crosslower";
     }
@@ -117,6 +133,7 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
     const { targetNavCell, nextDoor: rawNextDoor } = findTargetNavCellAndDoor(
         obs.currentCell,
         obs.opponents,
+        obs.selfTeam,
     );
     const nextDoor = !sameCell ? rawNextDoor : null;
 
@@ -147,16 +164,16 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
     const oppHardCc = oppInv.hardCc;
 
     const vec = [
-        obs.selfHpRatio,                                     // 0: self HP ratio
-        obs.selfMpRatio,                                     // 1: self MP ratio
-        obs.selfSpRatio,                                     // 2: self Stamina (intSP) ratio
+        obs.selfHpRatio ?? (obs.selfMaxHp > 0 ? obs.selfHp / obs.selfMaxHp : 1.0), // 0: self HP ratio
+        obs.selfMpRatio ?? (obs.selfMaxMp > 0 ? obs.selfMp / obs.selfMaxMp : 1.0), // 1: self MP ratio
+        obs.selfSpRatio ?? (obs.selfMaxSp > 0 ? obs.selfSp / obs.selfMaxSp : 1.0), // 2: self Stamina (intSP) ratio
         obs.canSprint ? 1.0 : 0.0,                           // 3: can sprint (SP >= 50)
         obs.selfInCombat ? 1.0 : 0.0,                        // 4: self in combat
         obs.selfInCombat ? 0.0 : 0.8,                        // 5: OOC timer progress
         screenIdx / 15.0,                                    // 6: normalized screen index
         Math.min(1.0, Math.max(0.0, obs.selfX / 960.0)),     // 7: self X
         Math.min(1.0, Math.max(0.0, obs.selfY / 550.0)),     // 8: self Y
-        obs.selfAlive ? 1.0 : 0.0,                           // 9: self alive
+        obs.selfAlive !== false ? 1.0 : 0.0,                 // 9: self alive
         obs.skillsReady[0] ? 1.0 : 0.0,                      // 10: skill 1 ready
         obs.skillsReady[1] ? 1.0 : 0.0,                      // 11: skill 2 ready
         obs.skillsReady[2] ? 1.0 : 0.0,                      // 12: skill 3 ready
