@@ -46,6 +46,61 @@ function toPlayerSnapshot(info: PlayerInfo, currentCellCanonical: string, cellPl
     };
 }
 
+export interface CombatInvariants {
+    /** 1.0 normal, 0.50 if barrier/defense active (-50% damage taken), >1.0 if vulnerable */
+    inDmgMultiplier: number;
+    /** 1.0 normal, 2.0 if burst buff active (+100% damage), etc. */
+    outDmgMultiplier: number;
+    /** 1.0 if Stunned / Off Balance / Frozen / Rooted / Disabled, else 0.0 */
+    hardCc: number;
+    /** Bonus dodge rate (e.g. 0.80 for Footwork) */
+    dodgeBonus: number;
+}
+
+export function parseAuraCombatInvariants(
+    auras: readonly { name: string; type?: string; category?: string }[],
+): CombatInvariants {
+    let inDmgMultiplier = 1.0;
+    let outDmgMultiplier = 1.0;
+    let hardCc = 0.0;
+    let dodgeBonus = 0.0;
+
+    for (const a of auras) {
+        const nm = (a.name ?? "").toLowerCase();
+        const cat = (a.category ?? "").toLowerCase();
+        const typ = (a.type ?? "").toLowerCase();
+
+        // 1. Hard CC
+        if (
+            cat === "stun" ||
+            cat === "disabled" ||
+            cat === "lock" ||
+            typ === "stun" ||
+            typ === "disabled" ||
+            /off balance|stun|stone|paralyze|disabled|petrif|frozen|sleep|root/i.test(nm)
+        ) {
+            hardCc = 1.0;
+        }
+
+        // 2. Incoming Damage Reduction (Barriers / Shields)
+        if (/guard|shield|stone skin|barrier|protect|defense|fortress|blessing/i.test(nm)) {
+            inDmgMultiplier = Math.min(inDmgMultiplier, 0.5);
+        }
+
+        // 3. Outgoing Damage Amplification
+        if (/prepared strike|fury|empower|crit|surge|reckless|battle cry/i.test(nm)) {
+            outDmgMultiplier = Math.max(outDmgMultiplier, 2.0);
+        }
+
+        // 4. Dodge Buffs
+        if (/footwork|evasion|dodge|agile|phantom/i.test(nm)) {
+            dodgeBonus = Math.max(dodgeBonus, 0.8);
+        }
+    }
+
+    return { inDmgMultiplier, outDmgMultiplier, hardCc, dodgeBonus };
+}
+
 export function isProtectedNpcName(name: string | null | undefined): boolean {
     if (!name) return false;
     const lower = name.toLowerCase();

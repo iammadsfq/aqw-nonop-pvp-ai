@@ -25,7 +25,7 @@ import type {
  * to be tapped for mana regeneration without any risk of killing it.
  */
 export function findSafeManaTapNpc(obs: CombatObservation): Monster | null {
-    for (const m of obs.cellMonsters) {
+    for (const m of obs.cellMonsters ?? []) {
         if (m.state <= 0 || m.hp <= 0) continue;
         if (!isProtectedNpcName(m.name)) continue;
         const hpRatio = m.hp / Math.max(1, m.maxHp);

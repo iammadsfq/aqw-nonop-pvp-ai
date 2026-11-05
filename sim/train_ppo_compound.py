@@ -84,7 +84,7 @@ class CompoundActorCritic(nn.Module):
         self.move_type_head = nn.Linear(hidden_dim, NUM_MOVE_TYPES)
         self.coord_head = nn.Linear(hidden_dim, COORD_DIM)
         # Learnable log standard deviation for continuous spatial target exploration
-        self.coord_log_std = nn.Parameter(torch.ones(COORD_DIM) * -1.2)
+        self.coord_log_std = nn.Parameter(torch.ones(COORD_DIM) * -2.2)
 
         self.critic_head = nn.Linear(hidden_dim, 1)
 
@@ -170,25 +170,31 @@ class CompoundActorCritic(nn.Module):
 
 def compute_masks(obs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Computes boolean physical action masks for combat (shape 7) and move (shape 3).
+    Computes boolean physical action masks for combat (shape 6) and move (shape 3)
+    from the 28-dimensional invariant observation vector.
     Only masks physically on-cooldown / out-of-range skills and insufficient stamina.
     """
     combat_mask = np.ones(NUM_COMBAT_ACTIONS, dtype=bool)
     move_mask = np.ones(NUM_MOVE_TYPES, dtype=bool)
 
-    in_melee = obs[23] > 0.5
+    can_sprint = obs[3] > 0.5
     s1_ready = obs[10] > 0.5
     s2_ready = obs[11] > 0.5
     s3_ready = obs[12] > 0.5
     s4_ready = obs[13] > 0.5
-    can_sprint = obs[3] > 0.5
     stunned = obs[19] > 0.5
+    same_cell = obs[23] > 0.5
+    in_melee = obs[25] > 0.5
+    has_safe_npc = obs[27] > 0.5
 
     # Combat masks:
     if not in_melee:
         combat_mask[2] = False  # S1 requires melee
         combat_mask[3] = False  # S2 requires melee
-        combat_mask[5] = False  # S4 requires melee
+    # S4 (On Guard) can hit opponent in melee, OR hit safe NPC when roaming/alone
+    s4_can_hit = in_melee or (has_safe_npc and not same_cell)
+    if not s4_can_hit:
+        combat_mask[5] = False  # S4 requires valid target
     if not s1_ready:
         combat_mask[2] = False
     if not s2_ready:
@@ -225,6 +231,9 @@ def load_pretrained_imitation_weights(model: CompoundActorCritic, ts_path: Path)
         json_str = json_raw[: last_brace + 1]
 
         data = json.loads(json_str)
+        if data.get("obsDim") != OBS_DIM:
+            print(f"[WarmStart] Existing weights have obsDim={data.get('obsDim')}, but expected {OBS_DIM}. Re-bootstrapping from expert prior.")
+            return False
 
         with torch.no_grad():
             model.fc1.weight.copy_(torch.tensor(data["w1"], dtype=torch.float32))
@@ -601,56 +610,87 @@ def pretrain_expert_demonstrations(model: CompoundActorCritic, num_samples: int 
 
     for _ in range(num_samples):
         obs, _ = env.reset()
-        same_cell = obs[21] > 0.5
-        in_melee = obs[23] > 0.5
-        dist = obs[22] * 1000.0
         can_sprint = obs[3] > 0.5
         self_x = obs[7] * 960.0
         self_y = obs[8] * 550.0
-        target_rel_x = obs[15]
-        target_rel_y = obs[16]
         s1_ready = obs[10] > 0.5
         s2_ready = obs[11] > 0.5
         s3_ready = obs[12] > 0.5
         s4_ready = obs[13] > 0.5
-        opp_buff = obs[18] > 0.5  # barrier
+        target_rel_x = obs[15]
+        target_rel_y = obs[16]
+        self_has_barrier = obs[18] < 0.7   # in_dmg_mult = 0.50
+        self_is_stunned = obs[19] > 0.5
+        opp_has_barrier = obs[20] < 0.7    # in_dmg_mult = 0.50
+        opp_is_stunned = obs[21] > 0.5
+        same_cell = obs[23] > 0.5
+        dist = obs[24] * 1000.0
+        in_melee = obs[25] > 0.5
+        opp_hp_ratio = obs[26]
+        has_safe_npc = obs[27] > 0.5
 
         if not same_cell:
-            # Roaming: Head toward door
-            c_act = 4 if (s3_ready and rng.random() < 0.3) else 0  # S3 buff or NONE
-            m_act = 2 if (can_sprint and rng.random() < 0.7) else 1  # SPRINT or WALK
+            # Roaming: Head toward door or pre-buff on safe NPC
+            if has_safe_npc and s4_ready and not self_has_barrier and rng.random() < 0.70:
+                # Pro tactic: tap safe NPC (Brawler/Restorer) to activate On Guard before entering Mid!
+                c_act = 5  # S4 On Guard
+            elif s3_ready and rng.random() < 0.35:
+                c_act = 4  # S3 Prepared Strike
+            else:
+                c_act = 0  # NONE
+            m_act = 2 if (can_sprint and rng.random() < 0.75) else 1  # SPRINT or WALK
             tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
             ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
         else:
             # In room with opponent
             if not in_melee:
-                # Approach
-                c_act = 4 if (s3_ready and rng.random() < 0.4) else 0
-                m_act = 2 if (can_sprint and dist > 400.0) else 1
+                # Approach opponent
+                c_act = 4 if (s3_ready and rng.random() < 0.40) else 0
+                m_act = 2 if (can_sprint and dist > 350.0) else 1
                 tx = np.clip(self_x + target_rel_x * 960.0, 40.0, 920.0)
                 ty = np.clip(self_y + target_rel_y * 550.0, 240.0, 500.0)
             else:
-                # In Melee
-                if opp_buff and dist < 220.0:
-                    # Kiting away from enemy barrier
-                    c_act = 0 if rng.random() < 0.5 else 1
-                    m_act = 2 if can_sprint else 1
-                    tx = np.clip(self_x - target_rel_x * 400.0, 40.0, 920.0)
-                    ty = np.clip(self_y - target_rel_y * 200.0, 240.0, 500.0)
+                # In Melee Range
+                if opp_has_barrier:
+                    # Enemy has active barrier (-50% dmg): Kite & Vertical Spacing!
+                    # Do not waste high damage burst into barrier
+                    if s4_ready and not self_has_barrier and rng.random() < 0.80:
+                        c_act = 5  # Mutual defense with S4
+                    elif rng.random() < 0.60:
+                        c_act = 1  # Auto attack poke
+                    else:
+                        c_act = 0  # Save skills / wait
+
+                    # Vertical elevation shift (platform kiting) and horizontal retreat:
+                    # Upper platform: Y ~ 280, lower ground: Y ~ 380
+                    target_y_shift = 280.0 if self_y > 340.0 else 380.0
+                    away_dir_x = -1.0 if target_rel_x >= 0 else 1.0
+                    tx = np.clip(self_x + away_dir_x * 350.0, 40.0, 920.0)
+                    ty = np.clip(target_y_shift, 240.0, 500.0)
+                    m_act = 2 if can_sprint else 1  # Sprint away
                 else:
-                    # Tactical combat combo
-                    if s2_ready and rng.random() < 0.85:
-                        c_act = 3  # S2 Stun
-                    elif s3_ready and rng.random() < 0.7:
-                        c_act = 4  # S3 Buff
+                    # Tactical combat combo against unshielded opponent
+                    if opp_is_stunned:
+                        # Opponent is stunned! Free guaranteed burst:
+                        if s1_ready:
+                            c_act = 2  # S1 Decisive Strike
+                        elif s3_ready:
+                            c_act = 4  # S3 Prepared Strike
+                        else:
+                            c_act = 1  # AA
+                    elif s2_ready and rng.random() < 0.85:
+                        c_act = 3  # S2 Imbalancing Strike (Stun)
+                    elif s3_ready and rng.random() < 0.75:
+                        c_act = 4  # S3 Prepared Strike
                     elif s1_ready and rng.random() < 0.85:
                         c_act = 2  # S1 Decisive Strike
-                    elif s4_ready and rng.random() < 0.5:
+                    elif s4_ready and not self_has_barrier and rng.random() < 0.60:
                         c_act = 5  # S4 On Guard
                     else:
                         c_act = 1  # AA
-                    # Stutter-step spacing
-                    m_act = 1 if rng.random() < 0.6 else 0
+
+                    # Melee stutter-step spacing
+                    m_act = 1 if rng.random() < 0.60 else 0
                     tx = np.clip(self_x + rng.uniform(-60.0, 60.0), 40.0, 920.0)
                     ty = np.clip(self_y + rng.uniform(-40.0, 40.0), 240.0, 500.0)
 
@@ -858,7 +898,29 @@ def train_ppo_compound(
                 v_loss = 0.5 * ((new_val - b_ret[mb_inds]) ** 2).mean()
                 entropy_loss = entropy.mean()
 
-                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss
+                # Auxiliary Spatial Prior Anchor:
+                # When roaming (obs[23] < 0.5), anchor target coordinates to the door aim direction
+                # so PPO optimization does not destroy navigation across 16 screens.
+                roaming_mask = (b_obs[mb_inds, 23] < 0.5)
+                if roaming_mask.any():
+                    self_x = b_obs[mb_inds, 7] * 960.0
+                    self_y = b_obs[mb_inds, 8] * 550.0
+                    rel_x = b_obs[mb_inds, 15]
+                    rel_y = b_obs[mb_inds, 16]
+                    ideal_tx = torch.clamp(self_x + rel_x * 960.0, 40.0, 920.0)
+                    ideal_ty = torch.clamp(self_y + rel_y * 550.0, 240.0, 500.0)
+                    ideal_norm_x = (ideal_tx - 40.0) / 880.0
+                    ideal_norm_y = (ideal_ty - 240.0) / 260.0
+                    ideal_coords = torch.stack([ideal_norm_x, ideal_norm_y], dim=-1)
+
+                    _, _, pred_coords_mu = model.forward_policy(b_obs[mb_inds])
+                    spatial_anchor_loss = nn.functional.mse_loss(
+                        pred_coords_mu[roaming_mask], ideal_coords[roaming_mask]
+                    )
+                else:
+                    spatial_anchor_loss = 0.0
+
+                loss = pg_loss - ent_coef * entropy_loss + vf_coef * v_loss + 2.0 * spatial_anchor_loss
 
                 optimizer.zero_grad()
                 loss.backward()

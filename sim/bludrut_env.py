@@ -432,13 +432,13 @@ ACTION_NAMES: tuple[str, ...] = (
     "SPRINT_DOOR_BACKWARD",  # 13: Sprint (50 SP) through door toward own side (fast escape/regen)
 )
 
-OBS_DIM = 26
+OBS_DIM = 28
 NUM_ACTIONS = len(ACTION_NAMES)
 
 
 def compute_action_mask_from_obs(obs: np.ndarray) -> np.ndarray:
     """
-    Computes a boolean validity mask of shape `(14,)` directly from the 26-dim observation vector.
+    Computes a boolean validity mask of shape `(14,)` directly from the 28-dim observation vector.
     Identical 1:1 with the action mask in `src/ai/nn_inference.ts`!
     """
     mask = np.ones(NUM_ACTIONS, dtype=bool)
@@ -448,8 +448,9 @@ def compute_action_mask_from_obs(obs: np.ndarray) -> np.ndarray:
     a2_cd = obs[11]
     a3_cd = obs[12]
     a4_cd = obs[13]
-    in_melee = obs[19] > 0.5
-    has_safe_npc = obs[25] > 0.5
+    in_melee = obs[25] > 0.5
+    has_safe_npc = obs[27] > 0.5
+    same_cell = obs[23] > 0.5
 
     if not can_sprint:
         mask[2] = False   # SPRINT_TO_OPPONENT
@@ -462,7 +463,9 @@ def compute_action_mask_from_obs(obs: np.ndarray) -> np.ndarray:
         mask[4] = False   # USE_SKILL_2 (Imbalancing Strike)
     if a3_cd > 1e-4 or mp < 20.0:
         mask[5] = False   # USE_SKILL_3 (Prepared Strike)
-    if a4_cd > 1e-4 or mp < 30.0 or not in_melee:
+    # S4 (On Guard) can hit opponent in melee, OR hit safe NPC if opponent is in another room
+    s4_can_hit = in_melee or (has_safe_npc and not same_cell)
+    if a4_cd > 1e-4 or mp < 30.0 or not s4_can_hit:
         mask[6] = False   # USE_SKILL_4 (On Guard)
     if not has_safe_npc:
         mask[10] = False  # MANA_TAP_NPC
@@ -633,13 +636,10 @@ class Bludrut1v1Env(gym.Env):
 
         # Strategic Navigation Objective (Symmetric for Blue & Red):
         own_sz = "Enter0" if me.team == "blue" else "Enter1"
-        own_restorer = "Resource0A" if me.team == "blue" else "Resource1A"
         opp_in_arena = (opp.cell not in ("Enter0", "Enter1", "Wait") and opp.hp > 0.0)
 
         if self.wave_won:
             target_nav_cell = own_sz
-        elif (me.hp / me.max_hp) < 0.30 and not same_cell:
-            target_nav_cell = own_restorer
         elif opp_in_arena:
             target_nav_cell = opp.cell
         else:
@@ -658,6 +658,12 @@ class Bludrut1v1Env(gym.Env):
             target_rel_y = 0.0
 
         mid_timer_ratio = min(1.0, self.agent_no_combat_away_from_mid_time / 60.0)
+
+        # Universal Combat Invariants (Class-Agnostic):
+        self_in_dmg_multiplier = 0.50 if (me.on_guard_rem > 0.0) else 1.0
+        self_hard_cc = 1.0 if (me.stun_rem > 0.0) else 0.0
+        opp_in_dmg_multiplier = 0.50 if (opp.on_guard_rem > 0.0) else 1.0
+        opp_hard_cc = 1.0 if (opp.stun_rem > 0.0) else 0.0
 
         obs = np.array(
             [
@@ -679,14 +685,16 @@ class Bludrut1v1Env(gym.Env):
                 float(np.clip(target_rel_x, -1.0, 1.0)),            # 15: primary target relative X (opp in room, or exit door when roaming)
                 float(np.clip(target_rel_y, -1.0, 1.0)),            # 16: primary target relative Y (opp in room, or exit door when roaming)
                 mid_timer_ratio,                                    # 17: 1-minute tournament rule progress
-                1.0 if (me.on_guard_rem > 0 or me.prepared_strike_rem > 0) else 0.0, # 18: self has buff
-                1.0 if me.stun_rem > 0.0 else 0.0,                  # 19: self stunned
-                1.0 if opp.hp > 0.0 else 0.0,                       # 20: opp alive
-                same_cell,                                          # 21: opp in same cell
-                min(1.0, dist / 1000.0),                            # 22: distance to opp
-                in_melee,                                           # 23: in melee range
-                opp.hp / max(1.0, opp.max_hp),                      # 24: opp HP ratio
-                has_safe_npc,                                       # 25: safe NPC HP ratio / available
+                self_in_dmg_multiplier,                             # 18: self incoming damage multiplier (0.50 if barrier, 1.0 normal)
+                self_hard_cc,                                       # 19: self stunned / disabled
+                opp_in_dmg_multiplier,                              # 20: opp incoming damage multiplier (0.50 if barrier, 1.0 normal)
+                opp_hard_cc,                                        # 21: opp stunned / disabled
+                1.0 if opp.hp > 0.0 else 0.0,                       # 22: opp alive
+                same_cell,                                          # 23: opp in same cell
+                min(1.0, dist / 1000.0),                            # 24: distance to opp
+                in_melee,                                           # 25: in melee range
+                opp.hp / max(1.0, opp.max_hp),                      # 26: opp HP ratio
+                has_safe_npc,                                       # 27: safe NPC available
             ],
             dtype=np.float32,
         )
@@ -995,6 +1003,9 @@ class Bludrut1v1Env(gym.Env):
                     f.prepared_strike_stacks = 2
                     f.last_combat_event = "S3_BUFF"
                 else:
+                    screen = SCREEN_BY_CELL.get(f.cell)
+                    has_safe_npc = screen and screen.npc_max_hp > 0 and self.npc_hp.get(f.cell, 0.0) >= 2000.0
+
                     if same_cell and dist <= MELEE_RANGE:
                         f.target_kind = "opponent"
                         f.mp -= self.skill_mp[skill_idx]
@@ -1017,6 +1028,15 @@ class Bludrut1v1Env(gym.Env):
                                 f.last_combat_event = f"S4_GUARD:{d:.0f}"
                             else:
                                 f.last_combat_event = f"S{skill_idx}_HIT:{d:.0f}"
+                    elif skill_idx == 4 and has_safe_npc and not same_cell:
+                        # Pre-buff On Guard on Brawler/Restorer NPC before entering combat!
+                        f.target_kind = "npc"
+                        f.mp -= self.skill_mp[4]
+                        f.cooldowns[4] = self.skill_cds[4]
+                        f.on_guard_rem = 10.0  # 10s 50% defense shield activated!
+                        f.in_combat = True
+                        f.time_since_last_combat_action = 0.0
+                        f.last_combat_event = "S4_NPC_PREBUFF"
                     else:
                         f.last_combat_event = f"S{skill_idx}_OUT_OF_RANGE"
             elif f.cooldowns[skill_idx] > 0.0:
@@ -1230,10 +1250,13 @@ class Bludrut1v1Env(gym.Env):
         self._tick_timers_and_regen(self.agent)
         self._tick_timers_and_regen(self.enemy)
 
-        # 1. Net EHP Trade (Damage Dealt vs Damage Taken)
+        # 1. Risk-Sensitive Damage Trade:
+        # Taking damage when low on HP is up to 3x more lethal/punishing than when healthy.
+        # This naturally incentivizes low-HP agents to EVADE / KITE / STALL, while healthy agents pursue!
         dmg_dealt = max(0.0, prev_enemy_hp - self.enemy.hp)
         dmg_taken = max(0.0, prev_agent_hp - self.agent.hp)
-        r_ehp = (dmg_dealt / MAX_HP) * 2.0 - (dmg_taken / MAX_HP) * 2.5
+        hp_vuln_mult = 1.0 + 2.0 * max(0.0, 1.0 - (self.agent.hp / self.agent.max_hp))
+        r_ehp = (dmg_dealt / MAX_HP) * 2.0 - (dmg_taken / MAX_HP) * 2.0 * hp_vuln_mult
 
         # 2. Damage Mitigation Dividend (absorbing damage with shields/buffs)
         r_mitigation = (agent_mit / MAX_HP) * 2.0
@@ -1241,19 +1264,20 @@ class Bludrut1v1Env(gym.Env):
         # 3. Crowd Control Dividend (incapacitating the opponent in-combat)
         r_stun = 0.04 if (self.enemy.stun_rem > 0.0 and self.enemy.cell == self.agent.cell) else 0.0
 
-        # 4. Navigation Potential Reward across 16 screens (PBRS)
+        # 4. Navigation Guidance across 16 screens:
+        # Only reward positive progress towards target room; NEVER penalize disengaging/kiting!
         if self.agent.cell != self.enemy.cell:
-            target_nav_cell = self.enemy.cell if (self.enemy.cell == "Crosslower" or self.enemy.cell.startswith("Morale1")) else "Crosslower"
+            target_nav_cell = self.enemy.cell if (self.enemy.cell not in ("Enter0", "Enter1")) else "Crosslower"
             prev_hop_dist = CELL_GRAPH_DIST.get((prev_agent_cell, target_nav_cell), 0)
             curr_hop_dist = CELL_GRAPH_DIST.get((self.agent.cell, target_nav_cell), 0)
-            r_nav = (prev_hop_dist - curr_hop_dist) * 0.40
+            r_nav = max(0.0, (prev_hop_dist - curr_hop_dist) * 0.30)
 
             # Intra-room spatial door guidance: guide (targetX, targetY) clicks toward exit door
             target_door = find_door_toward_cell(self.agent.cell, target_nav_cell)
             if target_door:
                 prev_d_door = math.hypot(prev_agent_x - target_door.aim_x, prev_agent_y - target_door.aim_y)
                 curr_d_door = math.hypot(self.agent.x - target_door.aim_x, self.agent.y - target_door.aim_y)
-                r_nav += max(-0.04, min(0.04, (prev_d_door - curr_d_door) / 500.0 * 0.1))
+                r_nav += max(0.0, (prev_d_door - curr_d_door) / 500.0 * 0.05)
         else:
             r_nav = 0.0
 
@@ -1298,15 +1322,12 @@ class Bludrut1v1Env(gym.Env):
         r_tactical = 0.0
         dist = math.hypot(self.agent.x - self.enemy.x, self.agent.y - self.enemy.y) if self.agent.cell == self.enemy.cell else 9999.0
         if self.agent.cell == self.enemy.cell:
-            # Engage dividend: when offensive skills are ready and enemy has NO barrier, reward closing to melee
-            if (self.agent.cooldowns[1] <= 0.0 or self.agent.cooldowns[2] <= 0.0) and self.enemy.on_guard_rem <= 0.0:
-                r_tactical += 0.03 * (1.0 - min(1.0, dist / 300.0))
-            # Spacing / Kiting dividend: when opponent has On Guard barrier (-50%), reward kiting away!
+            # Spacing / Kiting dividend: when opponent has On Guard barrier (-50%), reward kiting away (>200px)
             if self.enemy.on_guard_rem > 0.0:
                 if dist > 200.0:
-                    r_tactical += 0.06  # Reward maintaining safe distance while enemy has barrier
+                    r_tactical += 0.05  # Reward maintaining safe distance while enemy has barrier
                 else:
-                    r_tactical -= 0.03  # Disincentivize face-tanking into enemy 50% barrier
+                    r_tactical -= 0.02  # Disincentivize face-tanking into enemy 50% barrier
             # Stutter-step dividend: reward moving simultaneously while attacking
             if move_act in (1, 2) and combat_act in (1, 2, 3, 4, 5):
                 r_tactical += 0.02

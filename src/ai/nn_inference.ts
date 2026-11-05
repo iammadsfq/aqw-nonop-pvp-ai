@@ -18,6 +18,7 @@ import {
     getDoorAimCoordinates,
 } from "../config/constants";
 import { findSafeManaTapNpc } from "../rules/shield";
+import { parseAuraCombatInvariants } from "../state/extractor";
 import type {
     AtomicCombatAction,
     AtomicMovementType,
@@ -32,10 +33,11 @@ import {
 const MELEE_RANGE = 301.0;
 
 /**
- * Encodes the live Turu `CombatObservation` into the exact 26-dimensional normalized
+ * Encodes the live Turu `CombatObservation` into the 28-dimensional normalized
  * observation vector expected by the neural network (`sim/bludrut_env.py`).
+ * Incorporates class-agnostic Universal Combat Invariants (damage multipliers & hard CC).
  */
-export function buildObservationVector26(obs: CombatObservation): number[] {
+export function buildObservationVector28(obs: CombatObservation): number[] {
     const oppInCell = obs.opponents.find(
         (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
     );
@@ -58,7 +60,7 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
         ),
     );
 
-    const oppScreenIdx = opp
+    const oppScreenIdx = opp && opp.cell && opp.cell.trim() !== ""
         ? Math.max(0, BLUDRUT_16_SCREENS.findIndex((s) => s.cell.toLowerCase() === opp.cell.toLowerCase()))
         : 7; // default mid (7)
 
@@ -66,23 +68,22 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
         ? obs.selfTeam === "blue"
         : (obs.currentCell.toLowerCase().includes("0") || obs.currentCell.toLowerCase() === "enter0" || !obs.currentCell.toLowerCase().includes("1"));
     const ownSz = isBlueTeam ? "Enter0" : "Enter1";
-    const ownRestorer = isBlueTeam ? "Resource0A" : "Resource1A";
 
     const anyOpp = obs.opponents.find(
         (p) =>
             p.alive &&
+            p.cell &&
+            p.cell.trim() !== "" &&
+            BLUDRUT_16_SCREENS.some((s) => s.cell.toLowerCase() === p.cell.toLowerCase()) &&
             p.cell.toLowerCase() !== "enter0" &&
             p.cell.toLowerCase() !== "enter1" &&
             p.cell.toLowerCase() !== "wait",
     );
 
     let targetNavCell = "Crosslower";
-    if (obs.wave.canReturnToSafezone) {
+    if (obs.wave.canReturnToSafezone && !obs.inSafezone) {
         targetNavCell = ownSz;
-    } else if (obs.selfHpRatio < 0.30 && !sameCell) {
-        // Tactical retreat/hide to Restorer when low HP
-        targetNavCell = ownRestorer;
-    } else if (anyOpp) {
+    } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
         targetNavCell = anyOpp.cell;
     } else {
         targetNavCell = "Crosslower";
@@ -103,6 +104,19 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
 
     const safeNpc = findSafeManaTapNpc(obs);
 
+    // Universal Combat Invariants (Class-Agnostic):
+    const selfInv = parseAuraCombatInvariants(obs.selfAuras);
+    const oppAuras: readonly { name: string; type?: string; category?: string }[] = [
+        ...(opp?.auras ?? []),
+        ...(obs.targetAuras ?? []),
+    ];
+    const oppInv = parseAuraCombatInvariants(oppAuras);
+
+    const selfInDmgMultiplier = selfInv.inDmgMultiplier;
+    const selfHardCc = obs.selfStunned || selfInv.hardCc > 0.5 ? 1.0 : 0.0;
+    const oppInDmgMultiplier = oppInv.inDmgMultiplier;
+    const oppHardCc = oppInv.hardCc;
+
     const vec = [
         obs.selfHpRatio,                                     // 0: self HP ratio
         obs.selfMpRatio,                                     // 1: self MP ratio
@@ -122,18 +136,23 @@ export function buildObservationVector26(obs: CombatObservation): number[] {
         Math.min(1.0, Math.max(-1.0, targetRelX)),           // 15: primary target relative X (opp in room, or exit door when roaming)
         Math.min(1.0, Math.max(-1.0, targetRelY)),           // 16: primary target relative Y (opp in room, or exit door when roaming)
         0.0,                                                 // 17: mid timer progress ratio
-        obs.selfAuras.length > 0 ? 1.0 : 0.0,                // 18: self has buff
-        obs.selfStunned ? 1.0 : 0.0,                         // 19: self stunned
-        opp && opp.alive ? 1.0 : 0.0,                        // 20: opp alive
-        sameCell,                                            // 21: opp in same cell
-        Math.min(1.0, dist / 1000.0),                        // 22: distance to opp
-        inMelee,                                             // 23: in melee range
-        opp ? opp.hp / Math.max(1, opp.maxHp) : 0.0,         // 24: opp HP ratio
-        safeNpc ? 1.0 : 0.0,                                 // 25: safe NPC available
+        selfInDmgMultiplier,                                 // 18: self incoming damage multiplier (0.50 if barrier, 1.0 normal)
+        selfHardCc,                                          // 19: self stunned / disabled
+        oppInDmgMultiplier,                                  // 20: opp incoming damage multiplier (0.50 if barrier, 1.0 normal)
+        oppHardCc,                                           // 21: opp stunned / disabled
+        opp && opp.alive ? 1.0 : 0.0,                        // 22: opp alive
+        sameCell,                                            // 23: opp in same cell
+        Math.min(1.0, dist / 1000.0),                        // 24: distance to opp
+        inMelee,                                             // 25: in melee range
+        opp ? opp.hp / Math.max(1, opp.maxHp) : 0.0,         // 26: opp HP ratio
+        safeNpc ? 1.0 : 0.0,                                 // 27: safe NPC available
     ];
 
     return vec;
 }
+
+/** Backwards-compatible alias for buildObservationVector28 */
+export const buildObservationVector26 = buildObservationVector28;
 
 function denseTanh(x: readonly number[], w: readonly (readonly number[])[], b: readonly number[]): number[] {
     const out = new Array<number>(w.length);
@@ -180,10 +199,11 @@ export function inferBattleWarriorDecision(
     );
     const dist = oppInCell ? Math.hypot(obs.selfX - oppInCell.x, obs.selfY - oppInCell.y) : 9999.0;
     const inMelee = oppInCell ? dist <= MELEE_RANGE : false;
+    const sameCell = Boolean(oppInCell && oppInCell.alive);
     const safeNpc = findSafeManaTapNpc(obs);
 
     // Shared Neural Backbone forward pass
-    const x = buildObservationVector26(obs);
+    const x = buildObservationVector28(obs);
     const h1 = denseTanh(x, policy.w1, policy.b1);
     const h2 = denseTanh(h1, policy.w2, policy.b2);
 
@@ -196,13 +216,16 @@ export function inferBattleWarriorDecision(
     if (!inMelee) {
         combatLogits[2] = -1e9; // S1 physical melee range limit
         combatLogits[3] = -1e9; // S2 physical melee range limit
+    }
+    // S4 (On Guard) can strike opponent in melee, or tap safe NPC when alone to pre-buff
+    const s4CanHit = inMelee || (Boolean(safeNpc) && !sameCell);
+    if (!s4CanHit) {
         combatLogits[5] = -1e9; // S4 physical melee range limit
     }
     if (!obs.skillsReady[0]) combatLogits[2] = -1e9; // S1 on cooldown
     if (!obs.skillsReady[1]) combatLogits[3] = -1e9; // S2 on cooldown
     if (!obs.skillsReady[2]) combatLogits[4] = -1e9; // S3 on cooldown
     if (!obs.skillsReady[3]) combatLogits[5] = -1e9; // S4 on cooldown
-    if (!safeNpc) combatLogits[6] = -1e9; // 1v1 RuleShield: cannot attack protected NPC if no safe NPC exists
 
     let bestCombatIdx = 0;
     let bestCombatScore = -Infinity;
@@ -262,9 +285,10 @@ export function inferBattleWarriorDecision(
 
     const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
     const hitDoor = currentScreen?.doors.find((d) => {
-        const effYMax = (d.xMin === 0 || d.xMax >= 950) ? Math.max(d.yMax, 420) : d.yMax;
+        const isCorridorDoor = (d.xMin === 0 || d.xMax >= 950);
+        const effYMax = isCorridorDoor ? Math.max(d.yMax, 420) : d.yMax;
         const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= effYMax;
-        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < 110;
+        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < (isCorridorDoor ? 75 : 55);
         return inBox || nearAim;
     });
 
@@ -289,7 +313,7 @@ export function inferBattleWarriorDecision(
             targetPad,
         },
         targetName: oppInCell ? oppInCell.username : undefined,
-        npcMapId: undefined,
+        npcMapId: !oppInCell && chosenCombatAction === "USE_SKILL_4" && safeNpc ? safeNpc.mapId : undefined,
         reason: `[AtomicPolicy] Action: ${chosenCombatAction} | Move: ${chosenMoveType} -> (${targetX}, ${targetY})${targetCell ? ` [Door -> ${targetCell}]` : ""}`,
     };
 }

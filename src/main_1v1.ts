@@ -125,6 +125,8 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             }
         } catch (_) {}
         bot.combat.attackPlayer(decision.targetName);
+    } else if (decision.npcMapId !== undefined && (!obs.hasTarget || !obs.targetIsNpc)) {
+        bot.combat.attack(decision.npcMapId);
     }
 
     const movement = decision.movement ?? {
@@ -182,15 +184,15 @@ function executeDecision(decision: CombatDecision, obs: CombatObservation, comba
             obs.selfY <= targetDoor.yMax + 15;
         const atDoor = inDoorBox || distToDoorAim < 60;
 
-        // Jika sampai di pintu dan tertahan > 800ms tanpa pindah room (desync server)
+        // Jika sampai di pintu dan tertahan > 600ms tanpa pindah room (desync server)
         if (atDoor && !isSteppingDown) {
             if (doorArrivedAt === 0) {
                 doorArrivedAt = now;
-            } else if (now - doorArrivedAt > 800) {
+            } else if (now - doorArrivedAt > 600) {
                 if (stepDownAttempts < 2) {
                     stepDownAttempts++;
                     isSteppingDown = true;
-                    stepDownUntil = now + 500;
+                    stepDownUntil = now + 600;
 
                     const stepX =
                         targetDoor.aimX > 500
