@@ -81,7 +81,10 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
     );
 
     let targetNavCell = "Crosslower";
-    if (obs.wave.canReturnToSafezone && !obs.inSafezone) {
+    // Only retreat to safezone if bot is actually damaged/low mana and safezone is unlocked.
+    // If healthy (HP >= 70% and MP >= 40%), hold Mid (Crosslower) to maintain map control!
+    const needsSafezoneRecovery = obs.selfHpRatio < 0.70 || obs.selfMpRatio < 0.40;
+    if (obs.wave.canReturnToSafezone && !obs.inSafezone && needsSafezoneRecovery) {
         targetNavCell = ownSz;
     } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
         targetNavCell = anyOpp.cell;
@@ -288,18 +291,28 @@ export function inferBattleWarriorDecision(
         const isCorridorDoor = (d.xMin === 0 || d.xMax >= 950);
         const effYMax = isCorridorDoor ? Math.max(d.yMax, 420) : d.yMax;
         const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= effYMax;
-        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < (isCorridorDoor ? 75 : 55);
-        return inBox || nearAim;
+        const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < (isCorridorDoor ? 85 : 55);
+        // When roaming (!sameCell), if avatar targets toward screen exit boundary, engage corridor reach:
+        const corridorReach = !sameCell && ((d.xMin === 0 && targetX <= 320) || (d.xMax >= 950 && targetX >= 640));
+        return inBox || nearAim || corridorReach;
     });
 
     if (hitDoor) {
         targetCell = hitDoor.targetCell;
         targetPad = hitDoor.targetPad;
+        if (!sameCell) {
+            targetX = hitDoor.aimX;
+            targetY = hitDoor.aimY;
+        }
     } else {
         const trajHit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
         if (trajHit) {
             targetCell = trajHit.door.targetCell;
             targetPad = trajHit.door.targetPad;
+            if (!sameCell) {
+                targetX = trajHit.door.aimX;
+                targetY = trajHit.door.aimY;
+            }
         }
     }
 
