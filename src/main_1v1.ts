@@ -28,35 +28,11 @@ let lastSentWalkY = -1;
 let lastSentWalkSpeed = 0;
 let lastSentWalkTime = 0;
 let lastSprintTime = 0;
-let lastRegenTickTime = 0;
 let lastLogTime = 0;
 let lastLoggedReason = "";
 
 let currentCellTracker = "";
 let cellEnteredAt = 0;
-
-function maintainStaminaRegen(now: number, inCombat: boolean): void {
-    // In AQW:
-    // Out-of-Combat: +25 SP every 4.0 seconds
-    // In-Combat: stamina recovery is slower: +10 SP every 6.0 seconds
-    const regenInterval = inCombat ? 6000 : 4000;
-    const regenAmount = inCombat ? 10 : 25;
-
-    // Must wait at least 3.0s after sprinting before stamina begins recovering
-    if (now - lastSprintTime >= 3000 && now - lastRegenTickTime >= regenInterval) {
-        const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
-        if (currentSp < AQW_MAX_STAMINA) {
-            const regenedSp = Math.min(AQW_MAX_STAMINA, currentSp + regenAmount);
-            bot.flash.set("world.myAvatar.dataLeaf.intSP", regenedSp);
-            bot.flash.set("world.myAvatar.objData.intSP", regenedSp);
-            try {
-                bot.flash.callGameFunction("world.updatePortrait", "world.myAvatar");
-                bot.flash.callGameFunction("world.updateActBar");
-            } catch (_) {}
-            lastRegenTickTime = now;
-        }
-    }
-}
 
 // Door sync re-entry state ("turun dikit lalu masuk lagi")
 let activeDoorCell = "";
@@ -121,19 +97,22 @@ function triggerSprintWalk(obs: CombatObservation, x: number, y: number, isSprin
     lastSentWalkSpeed = targetSpeed;
     lastSentWalkTime = now;
 
+    // Send the authentic AQW SmartFox movement packet to the server:
+    // pushMove format: %xt%zm%mv%<curRoom>%<x>%<y>%<speed>%
+    // When targetSpeed is 24, the server validates the dash request, registers sprint,
+    // decrements SP on the server, and syncs intsp via uotls back to the client!
+    const curRoom = bot.flash.get<number>("world.curRoom") ?? 1;
+    try {
+        bot.send.packet(`%xt%zm%mv%${curRoom}%${x}%${y}%${targetSpeed}%`, "String");
+    } catch (_) {}
+
     if (canReallySprint) {
         lastSprintTime = now;
-        const newSp = Math.max(0, currentSp - AQW_SPRINT_STAMINA_COST);
-        bot.flash.set("world.myAvatar.dataLeaf.intSP", newSp);
-        bot.flash.set("world.myAvatar.objData.intSP", newSp);
-        try {
-            bot.flash.callGameFunction("world.updatePortrait", "world.myAvatar");
-            bot.flash.callGameFunction("world.updateActBar");
-        } catch (_) {}
-        bot.flash.set("world.justRan", false);
-        bot.flash.set("world.rootClass.pDash", true);
+        bot.flash.set("world.justRan", true);
+        bot.flash.set("world.rootClass.pDash", false);
         bot.player.walkTo(x, y, AQW_SPRINT_WALK_SPEED);
     } else {
+        bot.flash.set("world.justRan", false);
         bot.flash.set("world.rootClass.pDash", false);
         bot.player.walkTo(x, y, AQW_DEFAULT_WALK_SPEED);
     }
@@ -502,8 +481,6 @@ export default function main(): void {
             wave.opponentKilledInWave = false;
             wave.canReturnToSafezone = false;
         }
-
-        maintainStaminaRegen(Date.now(), obs.selfInCombat);
 
         const rawDecision = inferBattleWarriorDecision(obs);
         const safeDecision = applyRuleShield(rawDecision, obs, config);

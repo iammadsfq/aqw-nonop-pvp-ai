@@ -81,12 +81,7 @@ export function buildObservationVector28(obs: CombatObservation): number[] {
     );
 
     let targetNavCell = "Crosslower";
-    // Only retreat to safezone if bot is actually damaged/low mana and safezone is unlocked.
-    // If healthy (HP >= 70% and MP >= 40%), hold Mid (Crosslower) to maintain map control!
-    const needsSafezoneRecovery = obs.selfHpRatio < 0.70 || obs.selfMpRatio < 0.40;
-    if (obs.wave.canReturnToSafezone && !obs.inSafezone && needsSafezoneRecovery) {
-        targetNavCell = ownSz;
-    } else if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
+    if (anyOpp && anyOpp.cell && anyOpp.cell.toLowerCase() !== obs.currentCell.toLowerCase()) {
         targetNavCell = anyOpp.cell;
     } else {
         targetNavCell = "Crosslower";
