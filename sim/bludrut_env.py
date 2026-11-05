@@ -100,7 +100,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="safezone",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale0C", "Left", 750.0, 960.0, 220.0, 480.0, 850.0, 262.0, 173.0, 342.0),
+            DoorTrigger("Morale0C", "Left", 750.0, 960.0, 245.0, 315.0, 850.0, 262.0, 173.0, 342.0),
         ),
     ),
     ScreenSpec(
@@ -111,8 +111,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Enter0", "Right", 0.0, 220.0, 220.0, 480.0, 120.0, 265.0, 789.0, 354.0),
-            DoorTrigger("Morale0B", "Left", 750.0, 960.0, 220.0, 480.0, 855.0, 265.0, 191.0, 352.0),
+            DoorTrigger("Enter0", "Right", 0.0, 220.0, 245.0, 312.0, 120.0, 265.0, 789.0, 354.0),
+            DoorTrigger("Morale0B", "Left", 750.0, 960.0, 245.0, 312.0, 855.0, 265.0, 191.0, 352.0),
             DoorTrigger("Captain0", "Spawn", 400.0, 540.0, 220.0, 285.0, 465.0, 255.0, 468.0, 272.0),
         ),
     ),
@@ -124,8 +124,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale0C", "Right", 0.0, 225.0, 220.0, 480.0, 120.0, 268.0, 787.0, 354.0),
-            DoorTrigger("Morale0A", "Left", 735.0, 960.0, 220.0, 480.0, 855.0, 268.0, 192.0, 349.0),
+            DoorTrigger("Morale0C", "Right", 0.0, 225.0, 245.0, 312.0, 120.0, 268.0, 787.0, 354.0),
+            DoorTrigger("Morale0A", "Left", 735.0, 960.0, 245.0, 312.0, 855.0, 268.0, 192.0, 349.0),
         ),
     ),
     ScreenSpec(
@@ -136,8 +136,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale0B", "Right", 0.0, 225.0, 220.0, 480.0, 120.0, 270.0, 787.0, 350.0),
-            DoorTrigger("Crosslower", "Left", 745.0, 960.0, 220.0, 480.0, 855.0, 266.0, 186.0, 350.0),
+            DoorTrigger("Morale0B", "Right", 0.0, 225.0, 245.0, 312.0, 120.0, 270.0, 787.0, 350.0),
+            DoorTrigger("Crosslower", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 266.0, 186.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -159,7 +159,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource0A", "Left", 780.0, 960.0, 220.0, 480.0, 855.0, 268.0, 188.0, 351.0),
+            DoorTrigger("Resource0A", "Left", 780.0, 960.0, 245.0, 312.0, 855.0, 268.0, 188.0, 351.0),
         ),
     ),
     ScreenSpec(
@@ -170,8 +170,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource0B", "Right", 0.0, 235.0, 220.0, 480.0, 120.0, 268.0, 785.0, 350.0),
-            DoorTrigger("Crossupper", "Left", 755.0, 960.0, 220.0, 480.0, 855.0, 270.0, 192.0, 351.0),
+            DoorTrigger("Resource0B", "Right", 0.0, 235.0, 245.0, 312.0, 120.0, 268.0, 785.0, 350.0),
+            DoorTrigger("Crossupper", "Left", 755.0, 960.0, 245.0, 312.0, 855.0, 270.0, 192.0, 351.0),
         ),
     ),
     ScreenSpec(
@@ -182,8 +182,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="mid",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale0A", "Right", 0.0, 230.0, 220.0, 480.0, 120.0, 270.0, 789.0, 349.0),
-            DoorTrigger("Morale1A", "Left", 745.0, 960.0, 220.0, 480.0, 855.0, 268.0, 186.0, 354.0),
+            DoorTrigger("Morale0A", "Right", 0.0, 230.0, 245.0, 312.0, 120.0, 270.0, 789.0, 349.0),
+            DoorTrigger("Morale1A", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 268.0, 186.0, 354.0),
             DoorTrigger("Crossupper", "Bottom", 400.0, 530.0, 240.0, 305.0, 465.0, 258.0, 488.0, 429.0),
         ),
     ),
@@ -195,8 +195,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="top",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Resource0A", "Right", 0.0, 230.0, 220.0, 480.0, 120.0, 275.0, 785.0, 350.0),
-            DoorTrigger("Resource1A", "Left", 745.0, 960.0, 220.0, 480.0, 855.0, 275.0, 185.0, 347.0),
+            DoorTrigger("Resource0A", "Right", 0.0, 230.0, 245.0, 315.0, 120.0, 275.0, 785.0, 350.0),
+            DoorTrigger("Resource1A", "Left", 745.0, 960.0, 245.0, 315.0, 855.0, 275.0, 185.0, 347.0),
             DoorTrigger("Crosslower", "Middle", 120.0, 900.0, 450.0, 530.0, 485.0, 482.0, 490.0, 342.0),
         ),
     ),
@@ -208,8 +208,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Crossupper", "Right", 0.0, 185.0, 220.0, 480.0, 115.0, 275.0, 787.0, 351.0),
-            DoorTrigger("Resource1B", "Left", 745.0, 960.0, 220.0, 480.0, 855.0, 268.0, 188.0, 350.0),
+            DoorTrigger("Crossupper", "Right", 0.0, 185.0, 245.0, 315.0, 115.0, 275.0, 787.0, 351.0),
+            DoorTrigger("Resource1B", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 268.0, 188.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -220,7 +220,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="restorer",
         npc_max_hp=5000.0,
         doors=(
-            DoorTrigger("Resource1A", "Right", 0.0, 225.0, 220.0, 480.0, 120.0, 268.0, 785.0, 350.0),
+            DoorTrigger("Resource1A", "Right", 0.0, 225.0, 245.0, 312.0, 120.0, 268.0, 785.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -242,8 +242,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Crosslower", "Right", 0.0, 230.0, 220.0, 480.0, 120.0, 268.0, 787.0, 349.0),
-            DoorTrigger("Morale1B", "Left", 745.0, 960.0, 220.0, 480.0, 855.0, 268.0, 190.0, 350.0),
+            DoorTrigger("Crosslower", "Right", 0.0, 230.0, 245.0, 312.0, 120.0, 268.0, 787.0, 349.0),
+            DoorTrigger("Morale1B", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 268.0, 190.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -254,8 +254,8 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale1A", "Right", 0.0, 230.0, 220.0, 480.0, 120.0, 270.0, 785.0, 350.0),
-            DoorTrigger("Morale1C", "Left", 745.0, 960.0, 220.0, 480.0, 855.0, 270.0, 190.0, 350.0),
+            DoorTrigger("Morale1A", "Right", 0.0, 230.0, 245.0, 312.0, 120.0, 270.0, 785.0, 350.0),
+            DoorTrigger("Morale1C", "Left", 745.0, 960.0, 245.0, 312.0, 855.0, 270.0, 190.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -266,9 +266,9 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="brawler",
         npc_max_hp=10000.0,
         doors=(
-            DoorTrigger("Morale1B", "Right", 0.0, 235.0, 220.0, 480.0, 120.0, 270.0, 785.0, 350.0),
+            DoorTrigger("Morale1B", "Right", 0.0, 235.0, 245.0, 312.0, 120.0, 270.0, 785.0, 350.0),
             DoorTrigger("Captain1", "Spawn", 390.0, 520.0, 220.0, 285.0, 430.0, 255.0, 437.0, 271.0),
-            DoorTrigger("Enter1", "Left", 750.0, 960.0, 220.0, 480.0, 855.0, 268.0, 185.0, 350.0),
+            DoorTrigger("Enter1", "Left", 750.0, 960.0, 245.0, 312.0, 855.0, 268.0, 185.0, 350.0),
         ),
     ),
     ScreenSpec(
@@ -279,7 +279,7 @@ BLUDRUT_SCREENS: tuple[ScreenSpec, ...] = (
         role="safezone",
         npc_max_hp=0.0,
         doors=(
-            DoorTrigger("Morale1C", "Right", 0.0, 220.0, 220.0, 480.0, 120.0, 268.0, 785.0, 350.0),
+            DoorTrigger("Morale1C", "Right", 0.0, 220.0, 245.0, 315.0, 120.0, 268.0, 785.0, 350.0),
         ),
     ),
 )
@@ -352,7 +352,7 @@ def check_trajectory_door_collision(
         t_min = 0.0
         t_max = 1.0
         p = (-dx, dx, -dy, dy)
-        eff_y_max = max(door.y_max, 480.0) if (door.x_min == 0.0 or door.x_max >= 950.0) else door.y_max
+        eff_y_max = max(door.y_max, 420.0) if (door.x_min == 0.0 or door.x_max >= 950.0) else door.y_max
         q = (x0 - door.x_min, door.x_max - x0, y0 - door.y_min, eff_y_max - y0)
         intersects = True
 
