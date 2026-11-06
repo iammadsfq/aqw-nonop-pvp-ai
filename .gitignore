@@ -8,6 +8,15 @@
 *.zip
 *.dll
 *.bak
+*.pt
+*.pth
+*.onnx
+
+kaggle/out*/
+kaggle/output/
+policy_weights.json
+src/ai/policy_weights.json
+!src/ai/trained_policy_weights.ts
 
 # Environment variables & secrets (account credentials, API tokens)
 .env

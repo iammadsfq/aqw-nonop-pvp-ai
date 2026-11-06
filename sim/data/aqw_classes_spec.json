@@ -747,23 +747,6 @@
           "level": 0
         }
       ]
-    },
-    "house": {
-      "mapName": "house",
-      "fullName": "house-69198275",
-      "roomId": 238572,
-      "cells": [
-        "Wait",
-        "Enter",
-        "r1",
-        "r2",
-        "r3",
-        "r4",
-        "r5",
-        "r6",
-        "Blank"
-      ],
-      "monsters": []
     }
   },
   "doorTransitions": {
