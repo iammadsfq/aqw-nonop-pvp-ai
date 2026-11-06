@@ -8,6 +8,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
+    "resolveJsonModule": true,
     "paths": {
       "turu": ["./src/sdk/turu.ts"]
     }
