@@ -8,5 +8,8 @@
     "typecheck": "npx -y -p typescript@5.9.3 tsc --noEmit -p .",
     "turu:gui": "./scripts/run-turu.sh",
     "turu:headless": "./scripts/run-turu-headless.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6"
   }
 }
