@@ -1,98 +1,71 @@
 #!/usr/bin/env python3
 """
 sim/world/bludrut_map.py
-Topologi Resmi 16 Ruangan Bludrut Brawl AQW, AABB Hitbox Pintu, Landing Spawn, dan NPC.
+Topologi 16-Screen Map Bludrut Brawl, AABB Pintu, BFS Hop Distances, dan NPC Definitions.
+Dikalibrasi 1:1 dari Client Telemetry & Map SWF bludrutbrawl_r1.
 """
 
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
+from collections import deque
 
-# 16 Ruangan Playable Resmi Bludrut Brawl (Topological Order)
+# ==============================================================================
+# 1. SCREEN CONSTANTS & INDICES (16 SCREENS)
+# ==============================================================================
+
 SCREEN_NAMES = [
-    # Blue Side
-    "Enter0", "Morale0C", "Captain0", "Morale0B", "Morale0A",
-    # Mid Hub
-    "Crosslower", "Crossupper",
-    # Upper Resource Corridor (Buff Lane)
-    "Resource0B", "Resource0A", "Resource1A", "Resource1B",
-    # Red Side
-    "Morale1A", "Morale1B", "Morale1C", "Captain1", "Enter1"
+    "Enter0",       # 0: Blue Safezone
+    "Morale0C",     # 1: Blue B3
+    "Morale0B",     # 2: Blue B2
+    "Morale0A",     # 3: Blue B1
+    "Captain0",     # 4: Blue Captain
+    "Resource0B",   # 5: Blue Restorer 2
+    "Resource0A",   # 6: Blue Restorer 1
+    "Crosslower",   # 7: Mid
+    "Crossupper",   # 8: Top
+    "Resource1A",   # 9: Red Restorer 1
+    "Resource1B",   # 10: Red Restorer 2
+    "Captain1",     # 11: Red Captain
+    "Morale1A",     # 12: Red B1
+    "Morale1B",     # 13: Red B2
+    "Morale1C",     # 14: Red B3
+    "Enter1"        # 15: Red Safezone
 ]
 
 SCREEN_INDICES: Dict[str, int] = {name: idx for idx, name in enumerate(SCREEN_NAMES)}
 
-# Graf Koneksi Ruangan (Adjacency List Resmi)
-ADJACENCY: Dict[str, List[str]] = {
-    # Blue Side
-    "Enter0": ["Morale0C"],
-    "Morale0C": ["Enter0", "Captain0", "Morale0B"],
-    "Captain0": ["Morale0C"],
-    "Morale0B": ["Morale0C", "Morale0A"],
-    "Morale0A": ["Morale0B", "Crosslower"],
+# ==============================================================================
+# 2. STAGE BOUNDS & SPAWN POINTS
+# ==============================================================================
 
-    # Mid Junction
-    "Crosslower": ["Morale0A", "Morale1A", "Crossupper"],
-    "Crossupper": ["Crosslower", "Resource0A", "Resource1A"],
-
-    # Top Resource Wings
-    "Resource0B": ["Resource0A"],
-    "Resource0A": ["Resource0B", "Crossupper"],
-    "Resource1A": ["Crossupper", "Resource1B"],
-    "Resource1B": ["Resource1A"],
-
-    # Red Side
-    "Morale1A": ["Crosslower", "Morale1B"],
-    "Morale1B": ["Morale1A", "Morale1C"],
-    "Morale1C": ["Morale1B", "Captain1", "Enter1"],
-    "Captain1": ["Morale1C"],
-    "Enter1": ["Morale1C"],
-}
-
-# BFS Precomputation: Jarak Hop Antar-Ruangan
-def _compute_bfs_distances() -> Dict[Tuple[str, str], int]:
-    dist_map: Dict[Tuple[str, str], int] = {}
-    for start in SCREEN_NAMES:
-        queue = [(start, 0)]
-        visited = {start}
-        while queue:
-            curr, d = queue.pop(0)
-            dist_map[(start, curr)] = d
-            for nxt in ADJACENCY.get(curr, []):
-                if nxt not in visited:
-                    visited.add(nxt)
-                    queue.append((nxt, d + 1))
-    return dist_map
-
-CELL_GRAPH_DIST = _compute_bfs_distances()
-
-# Batas Maksimum Gerak Pemain (Valid Move Area)
 WALK_BOUNDS = {
     "x_min": 35.0,
     "x_max": 930.0,
     "y_min": 255.0,
-    "y_max": 500.0,
+    "y_max": 500.0
 }
 
-# Landing Zones / Spawn Points (Nilai Tengah dari Interval Resmi)
-LANDING_SPAWN = {
-    "Left":   {"x": (188.0 + 194.0) / 2.0, "y": (348.0 + 354.0) / 2.0},  # (191.0, 351.0)
-    "Right":  {"x": (783.0 + 792.0) / 2.0, "y": (348.0 + 354.0) / 2.0},  # (787.5, 351.0)
-    "Top":    {"x": (484.0 + 492.0) / 2.0, "y": (426.0 + 434.0) / 2.0},  # (488.0, 430.0) -> turun dari atas
-    "Bottom": {"x": (484.0 + 492.0) / 2.0, "y": (304.0 + 312.0) / 2.0},  # (488.0, 308.0) -> naik dari bawah
+SPAWN_COORDS = {
+    "Left":   {"x": 191.0, "y": 351.0},  # rentang: [188..194, 348..354]
+    "Right":  {"x": 787.5, "y": 351.0},  # rentang: [783..792, 348..354]
+    "Top":    {"x": 488.0, "y": 430.0},  # rentang: [484..492, 426..434] (mendarat di bawah saat datang dari atas)
+    "Bottom": {"x": 488.0, "y": 308.0},  # rentang: [484..492, 304..312] (mendarat di atas saat datang dari bawah)
 }
 
-# Titik Mendarat Khusus Safezone (Centroid Interval)
 SAFEZONE_SPAWN = {
-    "Enter0": {"x": (319.0 + 326.0) / 2.0, "y": (349.0 + 357.0) / 2.0},  # (322.5, 353.0)
-    "Enter1": {"x": (592.0 + 598.0) / 2.0, "y": (349.0 + 357.0) / 2.0},  # (595.0, 353.0)
+    "Enter0": {"x": 322.5, "y": 353.0},
+    "Enter1": {"x": 595.0, "y": 353.0}
 }
 
-# Model Pintu Axis-Aligned Bounding Box (AABB)
-@dataclass
+# ==============================================================================
+# 3. DOOR TRIGGER & AABB DEFINITIONS
+# ==============================================================================
+
+@dataclass(frozen=True)
 class DoorTrigger:
-    name: str
     target_cell: str
+    target_pad: str
     x_min: float
     x_max: float
     y_min: float
@@ -100,121 +73,134 @@ class DoorTrigger:
     spawn_x: float
     spawn_y: float
 
-    def contains(self, x: float, y: float) -> bool:
-        return (self.x_min <= x <= self.x_max) and (self.y_min <= y <= self.y_max)
+    def contains(self, px: float, py: float) -> bool:
+        return (self.x_min <= px <= self.x_max) and (self.y_min <= py <= self.y_max)
 
-def _create_door(door_type: str, target_cell: str) -> DoorTrigger:
-    if door_type == "Right":
-        # Masuk lewat kanan (765-865, 255-300) -> Muncul di sisi kiri room target
-        return DoorTrigger("Right", target_cell, 765.0, 865.0, 255.0, 300.0,
-                           LANDING_SPAWN["Left"]["x"], LANDING_SPAWN["Left"]["y"])
-    elif door_type == "Left":
-        # Masuk lewat kiri (120-220, 255-300) -> Muncul di sisi kanan room target
-        return DoorTrigger("Left", target_cell, 120.0, 220.0, 255.0, 300.0,
-                           LANDING_SPAWN["Right"]["x"], LANDING_SPAWN["Right"]["y"])
-    elif door_type == "Top":
-        # Masuk lewat atas (430-545, 255-300) -> Muncul di sisi atas room target
-        return DoorTrigger("Top", target_cell, 430.0, 545.0, 255.0, 300.0,
-                           LANDING_SPAWN["Top"]["x"], LANDING_SPAWN["Top"]["y"])
-    elif door_type == "Bottom":
-        # Masuk lewat bawah (35-930, 465-500) -> Muncul di sisi bawah room target
-        return DoorTrigger("Bottom", target_cell, 35.0, 930.0, 465.0, 500.0,
-                           LANDING_SPAWN["Bottom"]["x"], LANDING_SPAWN["Bottom"]["y"])
-    raise ValueError(f"Unknown door_type: {door_type}")
 
-# Pemetaan Pintu per Ruangan
 ROOM_DOORS: Dict[str, List[DoorTrigger]] = {
+    # --- BLUE SIDE ---
     "Enter0": [
-        _create_door("Right", "Morale0C")
+        DoorTrigger("Morale0C", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
     "Morale0C": [
-        _create_door("Left", "Enter0"),
-        _create_door("Top", "Captain0"),
-        _create_door("Right", "Morale0B")
-    ],
-    "Captain0": [
-        _create_door("Bottom", "Morale0C")
+        DoorTrigger("Enter0", "Right", 120.0, 220.0, 255.0, 300.0, SAFEZONE_SPAWN["Enter0"]["x"], SAFEZONE_SPAWN["Enter0"]["y"]),
+        DoorTrigger("Morale0B", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"]),
+        DoorTrigger("Captain0", "Top", 401.0, 573.0, 275.0, 300.0, SPAWN_COORDS["Top"]["x"], SPAWN_COORDS["Top"]["y"])
     ],
     "Morale0B": [
-        _create_door("Left", "Morale0C"),
-        _create_door("Right", "Morale0A")
+        DoorTrigger("Morale0C", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Morale0A", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
     "Morale0A": [
-        _create_door("Left", "Morale0B"),
-        _create_door("Right", "Crosslower")
+        DoorTrigger("Morale0B", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Crosslower", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
-    "Crosslower": [
-        _create_door("Left", "Morale0A"),
-        _create_door("Top", "Crossupper"),
-        _create_door("Right", "Morale1A")
+    "Captain0": [
+        DoorTrigger("Morale0C", "Bottom", 35.0, 930.0, 455.0, 500.0, SPAWN_COORDS["Bottom"]["x"], SPAWN_COORDS["Bottom"]["y"])
     ],
-    "Crossupper": [
-        _create_door("Left", "Resource0A"),
-        _create_door("Bottom", "Crosslower"),
-        _create_door("Right", "Resource1A")
+
+    # --- TOP ROW (RESOURCES) ---
+    "Resource0B": [
+        DoorTrigger("Resource0A", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
     "Resource0A": [
-        _create_door("Left", "Resource0B"),
-        _create_door("Right", "Crossupper")
+        DoorTrigger("Resource0B", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Crossupper", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
-    "Resource0B": [
-        _create_door("Right", "Resource0A")
+
+    # --- CENTER CROSS ---
+    "Crosslower": [
+        DoorTrigger("Morale0A", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Morale1A", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"]),
+        DoorTrigger("Crossupper", "Top", 430.0, 545.0, 255.0, 300.0, SPAWN_COORDS["Top"]["x"], SPAWN_COORDS["Top"]["y"])
     ],
+    "Crossupper": [
+        DoorTrigger("Resource0A", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Resource1A", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"]),
+        DoorTrigger("Crosslower", "Bottom", 35.0, 930.0, 465.0, 500.0, SPAWN_COORDS["Bottom"]["x"], SPAWN_COORDS["Bottom"]["y"])
+    ],
+
+    # --- RED SIDE ---
     "Resource1A": [
-        _create_door("Left", "Crossupper"),
-        _create_door("Right", "Resource1B")
+        DoorTrigger("Crossupper", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Resource1B", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
     "Resource1B": [
-        _create_door("Left", "Resource1A")
+        DoorTrigger("Resource1A", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"])
     ],
     "Morale1A": [
-        _create_door("Left", "Crosslower"),
-        _create_door("Right", "Morale1B")
+        DoorTrigger("Crosslower", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Morale1B", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
     "Morale1B": [
-        _create_door("Left", "Morale1A"),
-        _create_door("Right", "Morale1C")
+        DoorTrigger("Morale1A", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Morale1C", "Left", 765.0, 865.0, 255.0, 300.0, SPAWN_COORDS["Left"]["x"], SPAWN_COORDS["Left"]["y"])
     ],
     "Morale1C": [
-        _create_door("Left", "Morale1B"),
-        _create_door("Top", "Captain1"),
-        _create_door("Right", "Enter1")
+        DoorTrigger("Morale1B", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"]),
+        DoorTrigger("Captain1", "Top", 401.0, 573.0, 275.0, 300.0, SPAWN_COORDS["Top"]["x"], SPAWN_COORDS["Top"]["y"]),
+        DoorTrigger("Enter1", "Left", 765.0, 865.0, 255.0, 300.0, SAFEZONE_SPAWN["Enter1"]["x"], SAFEZONE_SPAWN["Enter1"]["y"])
     ],
     "Captain1": [
-        _create_door("Bottom", "Morale1C")
+        DoorTrigger("Morale1C", "Bottom", 35.0, 930.0, 455.0, 500.0, SPAWN_COORDS["Bottom"]["x"], SPAWN_COORDS["Bottom"]["y"])
     ],
     "Enter1": [
-        _create_door("Left", "Morale1C")
+        DoorTrigger("Morale1C", "Right", 120.0, 220.0, 255.0, 300.0, SPAWN_COORDS["Right"]["x"], SPAWN_COORDS["Right"]["y"])
     ]
 }
 
-# Definisi NPC Resmi Peta (monmap)
-@dataclass
-class NpcDefinition:
+# ==============================================================================
+# 4. PRECOMPUTED BFS TOPOLOGIC HOP DISTANCES
+# ==============================================================================
+
+def _build_hop_matrix() -> Dict[Tuple[str, str], int]:
+    dist: Dict[Tuple[str, str], int] = {}
+    for start_node in SCREEN_NAMES:
+        queue = deque([(start_node, 0)])
+        visited = {start_node}
+        while queue:
+            curr, d = queue.popleft()
+            dist[(start_node, curr)] = d
+            for door in ROOM_DOORS.get(curr, []):
+                nxt = door.target_cell
+                if nxt not in visited:
+                    visited.add(nxt)
+                    queue.append((nxt, d + 1))
+    return dist
+
+CELL_GRAPH_DIST: Dict[Tuple[str, str], int] = _build_hop_matrix()
+
+# ==============================================================================
+# 5. BLUDRUT NPCS SPECIFICATION
+# ==============================================================================
+
+@dataclass(frozen=True)
+class NpcSpec:
     mon_map_id: int
-    mon_id: int
     name: str
     cell: str
     team: int
     max_hp: float
-    dps: float
 
-BLUDRUT_NPCS: List[NpcDefinition] = [
-    # Team 0 (Blue)
-    NpcDefinition(1,  308, "Team A Captain", "Captain0", 0, 15000.0, 54.0),
-    NpcDefinition(2,  310, "(A) Brawler", "Morale0C", 0, 10000.0, 214.0),
-    NpcDefinition(3,  310, "(A) Brawler", "Morale0B", 0, 10000.0, 214.0),
-    NpcDefinition(4,  310, "(A) Brawler", "Morale0A", 0, 10000.0, 214.0),
-    NpcDefinition(5,  312, "(A) Defensive Restorer", "Resource0B", 0, 5000.0, 107.0),
-    NpcDefinition(6,  312, "(A) Defensive Restorer", "Resource0B", 0, 5000.0, 107.0),
-    NpcDefinition(7,  312, "(A) Defensive Restorer", "Resource0A", 0, 5000.0, 107.0),
-    NpcDefinition(8,  312, "(A) Defensive Restorer", "Resource0A", 0, 5000.0, 107.0),
+BLUDRUT_NPCS: Tuple[NpcSpec, ...] = (
+    # Blue Side (Team 0)
+    NpcSpec(1, "Team A Captain", "Captain0", 0, 15000.0),
+    NpcSpec(2, "(A) Brawler", "Morale0C", 0, 10000.0),
+    NpcSpec(3, "(A) Brawler", "Morale0B", 0, 10000.0),
+    NpcSpec(4, "(A) Brawler", "Morale0A", 0, 10000.0),
+    NpcSpec(5, "(A) Defensive Restorer", "Resource0B", 0, 5000.0),
+    NpcSpec(6, "(A) Defensive Restorer", "Resource0B", 0, 5000.0),
+    NpcSpec(7, "(A) Defensive Restorer", "Resource0A", 0, 5000.0),
+    NpcSpec(8, "(A) Defensive Restorer", "Resource0A", 0, 5000.0),
 
-    # Team 1 (Red)
-    NpcDefinition(9,  313, "(B) Defensive Restorer", "Resource1A", 1, 5000.0, 107.0),
-    NpcDefinition(10, 313, "(B) Defensive Restorer", "Resource1A", 1, 5000.0, 107.0),
-    NpcDefinition(11, 313, "(B) Defensive Restorer", "Resource1B", 1, 5000.0, 107.0),
-    NpcDefinition(12, 313, "(B) Defensive Restorer", "Resource1B", 1, 5000.0, 107.0),
-    NpcDefinition(13, 311, "(B) Brawler", "Morale1A", 1, 10000.0, 214.0),
-    NpcDefinition(14, 311, "(B) Brawler", "Morale1B", 1, 10000.0, 214.0),
-    NpcDefinition(15, 311, "(B) Brawler", "Morale1C", 1, 10000.0, 214.0),
+    # Red Side (Team 1)
+    NpcSpec(9, "(B) Defensive Restorer", "Resource1A", 1, 5000.0),
+    NpcSpec(10, "(B) Defensive Restorer", "Resource1A", 1, 5000.0),
+    NpcSpec(11, "(B) Defensive Restorer", "Resource1B", 1, 5000.0),
+    NpcSpec(12, "(B) Defensive Restorer", "Resource1B", 1, 5000.0),
+    NpcSpec(13, "(B) Brawler", "Morale1A", 1, 10000.0),
+    NpcSpec(14, "(B) Brawler", "Morale1B", 1, 10000.0),
+    NpcSpec(15, "(B) Brawler", "Morale1C", 1, 10000.0),
+    NpcSpec(16, "Team B Captain", "Captain1", 1, 15000.0),
+    
+)
