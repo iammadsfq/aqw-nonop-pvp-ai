@@ -105,6 +105,9 @@ export class EntityTracker {
           case "initUserData":
             this.handleInitUserData(dataObj);
             break;
+          case "initUserDatas":
+            this.handleInitUserDatas(dataObj);
+            break;
           case "stu":
             this.handleStu(dataObj);
             break;
@@ -217,11 +220,28 @@ export class EntityTracker {
     }
   }
 
+  private handleInitUserDatas(dataObj: any): void {
+    const arr = Array.isArray(dataObj.a) ? dataObj.a : [];
+    for (const entry of arr) {
+      if (!entry?.data) continue;
+      const uName = (entry.data.strUsername || "").toLowerCase();
+      if (!uName) continue;
+
+      const ent = this.getOrCreateEntity(uName);
+      if (entry.uid) {
+        ent.entId = Number(entry.uid);
+        this.entIdToName.set(ent.entId, uName);
+      }
+      if (entry.data.strClassName) {
+        ent.roleCategory = this.resolveRoleCategory(entry.data.strClassName);
+      }
+    }
+  }
+
   private handleStu(dataObj: any): void {
     if (!dataObj.sta) return;
     const s = dataObj.sta;
     if (typeof s["$cai"] === "number") this.selfLocalStats.inDmgMult = s["$cai"];
-    if (typeof s["$cdi"] === "number") this.selfLocalStats.inDmgMult = this.selfLocalStats.inDmgMult, s["$cdi"];
     if (typeof s["$cao"] === "number") this.selfLocalStats.outDmgMult = s["$cao"];
     if (typeof s["$cmo"] === "number") this.selfLocalStats.outDmgMult = Math.max(this.selfLocalStats.outDmgMult, s["$cmo"]);
     if (typeof s["$cmc"] === "number") this.selfLocalStats.manaCostMult = s["$cmc"];
@@ -229,7 +249,6 @@ export class EntityTracker {
     if (typeof s["$tdo"] === "number") this.selfLocalStats.dodgeRate = s["$tdo"];
     if (typeof s["$tha"] === "number") this.selfLocalStats.haste = s["$tha"];
 
-    // Update langsung ke self entity
     const selfEnt = this.entities.get(this.myUsername);
     if (selfEnt) {
       selfEnt.stats.inDmgMult = this.selfLocalStats.inDmgMult;
@@ -242,7 +261,7 @@ export class EntityTracker {
   }
 
   private handleCt(dataObj: any): void {
-    // 1. Resource & HP update
+    // 1. Health/Resource updates & Deteksi Kematian Universal
     if (dataObj.p && typeof dataObj.p === "object") {
       for (const [uName, vObj] of Object.entries<any>(dataObj.p)) {
         if (this.isMonsterIdentifier(uName)) continue;
@@ -258,11 +277,9 @@ export class EntityTracker {
           ent.hp_norm = ent.maxHp > 0 ? Math.min(1.0, Math.max(0.0, ent.currentHp / ent.maxHp)) : 0.0;
           ent.alive = ent.currentHp > 0;
         }
-
         if (typeof vObj.intState === "number") {
           ent.alive = vObj.intState !== 0;
         }
-
         if (!ent.alive) {
           ent.currentHp = 0;
           ent.hp_norm = 0.0;
@@ -271,7 +288,6 @@ export class EntityTracker {
           ent.activeAuras.clear();
           this.recalculateAuras(ent);
         }
-
         if (typeof vObj.intMP === "number") {
           ent.mp_norm = Math.min(1.0, Math.max(0.0, vObj.intMP / 100.0));
         }
@@ -281,7 +297,7 @@ export class EntityTracker {
       }
     }
 
-    // 2. Action reset
+    // 2. Action reset via SARSA
     const sarsa = Array.isArray(dataObj.sarsa) ? dataObj.sarsa : [];
     for (const s of sarsa) {
       const caster = this.resolveTargetName(String(s.cInf ?? ""));
@@ -292,6 +308,7 @@ export class EntityTracker {
       }
     }
 
+    // 3. Action reset via ANIMS
     const anims = Array.isArray(dataObj.anims) ? dataObj.anims : [];
     for (const an of anims) {
       const caster = this.resolveTargetName(String(an.cInf ?? ""));
@@ -302,7 +319,7 @@ export class EntityTracker {
       }
     }
 
-    // 3. Aura management
+    // 4. Aura management
     const auras = Array.isArray(dataObj.a) ? dataObj.a : [];
     for (const aEntry of auras) {
       const isRemove = aEntry.cmd === "aura-";
@@ -312,7 +329,6 @@ export class EntityTracker {
       const ent = this.getOrCreateEntity(target);
       ent.lastSeenTs = Date.now();
 
-      // Mendukung array `auras` maupun objek tunggal `aura`
       const auraList = Array.isArray(aEntry.auras) 
         ? aEntry.auras 
         : (aEntry.aura ? [aEntry.aura] : []);
@@ -325,7 +341,6 @@ export class EntityTracker {
           const meta = STATIC_AURA_CATALOG[nam];
           const cat = String(a.cat ?? meta?.cat ?? "").toLowerCase();
           const dur = typeof a.dur === "number" ? a.dur : 4.0;
-          
           let outDmg: number | undefined = meta?.outDmgMult;
           if (typeof a.val === "number") {
             outDmg = a.val;
@@ -401,6 +416,11 @@ export class EntityTracker {
       if (!k || v === undefined) continue;
 
       if (k === "strFrame") ent.cell = v;
+      if (k === "strPad" && v === "Spawn" && !ent.alive) {
+        ent.alive = true;
+        ent.currentHp = ent.maxHp;
+        ent.hp_norm = 1.0;
+      }
       if (k === "px") ent.x = Number(v) || ent.x;
       if (k === "py") ent.y = Number(v) || ent.y;
       if (k === "intHP") {
@@ -475,7 +495,6 @@ export class EntityTracker {
       if (aura.inDmgMult !== undefined) inMult *= aura.inDmgMult;
     }
 
-    // Diri sendiri: Nilai kontinu murni dari stu (tidak dikalikan lagi agar terhindar dari double-counting)
     if (ent.username === this.myUsername) {
       ent.stats.outDmgMult = this.selfLocalStats.outDmgMult;
       ent.stats.inDmgMult = this.selfLocalStats.inDmgMult;
@@ -537,7 +556,6 @@ export class EntityTracker {
 
     for (const [uName, ent] of this.entities.entries()) {
       if (uName === this.myUsername) {
-        // Sinkronisasi data lokal bot dari Turu API & stu
         ent.stats.inDmgMult = this.selfLocalStats.inDmgMult;
         ent.stats.outDmgMult = this.selfLocalStats.outDmgMult;
         ent.stats.manaCostMult = this.selfLocalStats.manaCostMult;
@@ -560,7 +578,6 @@ export class EntityTracker {
         ent.lastSeenTs = Date.now();
       }
 
-      // Hitung mundur durasi aura aktif
       let auraChanged = false;
       for (const [nam, aura] of ent.activeAuras.entries()) {
         aura.durationRem -= dtSec;
@@ -600,9 +617,6 @@ export class EntityTracker {
     );
   }
 
-  /**
-   * Target operasional serang (wajib berada di cell yang sama dan hidup).
-   */
   public getPrimaryOpponent(): TrackedEntity | null {
     const enemies = this.getEnemies();
     if (enemies.length === 0) return null;
@@ -610,9 +624,6 @@ export class EntityTracker {
     return enemies.find((e) => e.cell === myCell && e.alive) ?? null;
   }
 
-  /**
-   * Target strategis global (untuk keperluan navigasi antar-cell jika tidak ada musuh di cell saat ini).
-   */
   public getGlobalTarget(): TrackedEntity | null {
     const enemies = this.getEnemies();
     return enemies.find((e) => e.alive) ?? enemies[0] ?? null;
