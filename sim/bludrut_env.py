@@ -204,6 +204,7 @@ class Entity:
     used_sprint: bool = False
     sprint_rem: float = 0.0
     respawn_timer: float = 0.0
+    is_resting: bool = False
 
     @property
     def is_stunned(self) -> bool:
@@ -244,6 +245,7 @@ class Entity:
         self.illegal_sz_entered = False
         self.used_sprint = False
         self.sprint_rem = 0.0
+        self.is_resting = False
 
     def tick_status(self, dt: float, is_regen_tick: bool) -> None:
         if not self.is_alive:
@@ -264,6 +266,7 @@ class Entity:
                 self.touched_mid = False
                 self.illegal_sz_entered = False
                 self.sprint_rem = 0.0
+                self.is_resting = False
                 sz_cell = "Enter0" if self.team == 0 else "Enter1"
                 self.cell = sz_cell
                 self.x = SAFEZONE_SPAWN[sz_cell]["x"]
@@ -357,6 +360,13 @@ class BludrutBrawlEnv:
         self.p0_deaths = 0
         self.p1_deaths = 0
 
+        # Aggro NPC tracker: mon_map_id -> target player entity (p0 atau p1)
+        self.npc_aggro: Dict[int, Optional[Entity]] = {}
+        # Cooldown serangan NPC (10 Hz step)
+        self.npc_atk_cd: Dict[int, float] = {}
+        # Status interaksi duel pemain pasca-respawn
+        self.engaged_pvp: bool = False
+
         self.p0 = Entity(
             ent_id="p:187461",
             name="uma",
@@ -384,6 +394,8 @@ class BludrutBrawlEnv:
 
     def _init_npcs(self) -> None:
         self.npcs.clear()
+        self.npc_aggro.clear()
+        self.npc_atk_cd.clear()
         for defn in BLUDRUT_NPCS:
             self.npcs[defn.mon_map_id] = Entity(
                 ent_id=f"m:{defn.mon_map_id}",
@@ -402,6 +414,8 @@ class BludrutBrawlEnv:
                 dodge_rate=0.05,
                 crit_rate=0.05,
             )
+            self.npc_aggro[defn.mon_map_id] = None
+            self.npc_atk_cd[defn.mon_map_id] = 0.0
 
     def reset(self) -> Tuple[np.ndarray, np.ndarray]:
         self.match_time = 0.0
@@ -410,6 +424,7 @@ class BludrutBrawlEnv:
         self.p1_kills = 0
         self.p0_deaths = 0
         self.p1_deaths = 0
+        self.engaged_pvp = False
         self.p0.reset("Enter0", SAFEZONE_SPAWN["Enter0"]["x"], SAFEZONE_SPAWN["Enter0"]["y"])
         self.p1.reset("Enter1", SAFEZONE_SPAWN["Enter1"]["x"], SAFEZONE_SPAWN["Enter1"]["y"])
         self._init_npcs()
@@ -522,16 +537,47 @@ class BludrutBrawlEnv:
         self._process_combat(self.p0, self.p1, act0.combat_act)
         self._process_combat(self.p1, self.p0, act1.combat_act)
 
+        # 3b. Aggro NPC Attack Phase
+        # NPC hanya memukul pemain yang mengaggro NPC tersebut (dan aggro reset saat pemain pindah cell)
+        for m_id, tgt_player in list(self.npc_aggro.items()):
+            npc = self.npcs.get(m_id)
+            if not npc or not tgt_player or not tgt_player.is_alive or tgt_player.cell != npc.cell:
+                self.npc_aggro[m_id] = None
+                self.npc_atk_cd[m_id] = 0.0
+                continue
+
+            self.npc_atk_cd[m_id] = max(0.0, self.npc_atk_cd.get(m_id, 0.0) - self.DT)
+            # Serangan NPC setiap 2.0 detik (~1.000 - 1.250 damage)
+            if self.npc_atk_cd[m_id] <= 1e-4:
+                self.npc_atk_cd[m_id] = 2.0
+                npc_dmg = self.rng.uniform(1000.0, 1250.0) * tgt_player.incoming_dmg_mult
+                tgt_player.hp = max(0.0, tgt_player.hp - npc_dmg)
+                tgt_player.time_since_combat = 0.0
+                tgt_player.in_combat = True
+                if tgt_player.hp <= 0.0:
+                    tgt_player.hp = 0.0
+                    tgt_player.is_alive = False
+                    tgt_player.respawn_timer = self.RESPAWN_DELAY
+                    self.npc_aggro[m_id] = None
+                    self.npc_atk_cd[m_id] = 0.0
+
         # 4. Check lethal events occurring in this step
         p0_died = prev_p0["alive"] and not self.p0.is_alive
         p1_died = prev_p1["alive"] and not self.p1.is_alive
 
+        # Aturan Non-OP Bludrut Brawl:
+        # Jika belum pernah duel dengan lawan pasca-respawn (self.engaged_pvp == False),
+        # mati oleh NPC (misal taktik sui / eksekusi NPC) TIDAK memberikan +1 skor ke lawan!
         if p0_died:
-            self.p1_kills += 1
             self.p0_deaths += 1
+            if self.engaged_pvp:
+                self.p1_kills += 1
+            self.engaged_pvp = False
         if p1_died:
-            self.p0_kills += 1
             self.p1_deaths += 1
+            if self.engaged_pvp:
+                self.p0_kills += 1
+            self.engaged_pvp = False
 
         # 4b. Update Zone Mode Triggers (Mode 1: Respawn/Push vs Mode 2: Mid Contested / Met Opponent)
         if p0_died or p1_died:
@@ -722,6 +768,23 @@ class BludrutBrawlEnv:
     # --------------------------------------------------------------------------
     def _process_movement(self, ent: Entity, act: ActionSpec) -> None:
         ent.used_sprint = False
+        sz_cell = "Enter0" if ent.team == 0 else "Enter1"
+
+        # Safezone Resting: Jika berada di Safezone timnya dan HP < MaxHP, lakukan Rest otomatis (+15% HP, +15 MP, +25 SP / sec)
+        if ent.cell == sz_cell and ent.is_alive and ent.hp < ent.max_hp:
+            ent.is_resting = True
+            ent.sprint_rem = 0.0
+            # Rest tick: 1.5% HP per 0.10s tick = 15% HP per second
+            ent.hp = min(ent.max_hp, ent.hp + 0.15 * ent.max_hp * (self.DT / 1.0))
+            ent.mp = min(ent.max_mp, ent.mp + 15.0 * (self.DT / 1.0))
+            ent.sp = min(ent.max_sp, ent.sp + 25.0 * (self.DT / 1.0))
+            if ent.hp >= ent.max_hp - 1e-3:
+                ent.hp = ent.max_hp
+                ent.is_resting = False
+            return  # Matikan aksi pergerakan saat sedang istirahat hingga nyawa penuh!
+        else:
+            ent.is_resting = False
+
         if not ent.is_alive or ent.is_stunned or act.move_type == 0:
             ent.sprint_rem = 0.0
             return
@@ -778,6 +841,12 @@ class BludrutBrawlEnv:
 
                 if prev_cell in ("Enter0", "Enter1") and ent.cell not in ("Enter0", "Enter1"):
                     ent.can_enter_sz = False
+
+                # Reset Aggro NPC saat pemain pindah screen
+                for m_id, tgt_ent in list(self.npc_aggro.items()):
+                    if tgt_ent == ent:
+                        self.npc_aggro[m_id] = None
+                        self.npc_atk_cd[m_id] = 0.0
                 return
 
         ent.x = float(np.clip(next_x, FLOOR_X_MIN, FLOOR_X_MAX))
@@ -844,6 +913,7 @@ class BludrutBrawlEnv:
             tgt.time_since_combat = 0.0
             atk.in_combat = True
             tgt.in_combat = True
+            self.engaged_pvp = True  # Tercatat duel aktif antarpemain!
 
             if tgt.hp <= 0.0:
                 tgt.hp = 0.0

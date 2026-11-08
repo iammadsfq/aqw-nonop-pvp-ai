@@ -318,6 +318,7 @@ export default async function main(): Promise<void> {
     let engagedOpponentName: string | null = null;
     let oocTimer = 10.0;
     let lastLoopTs = Date.now();
+    let isResting = false;
 
     // 6. Main 10 Hz Control Loop
     while (!bot.shouldExit && wave.teamKills < config.killTarget) {
@@ -331,6 +332,7 @@ export default async function main(): Promise<void> {
         wave.opponentKilledInWave = false;
         wave.canReturnToSafezone = false;
         engagedOpponentName = null;
+        isResting = false;
         oocTimer = 10.0;
         lastSprintTime = 0;
         resetPolicyState();
@@ -393,19 +395,38 @@ export default async function main(): Promise<void> {
           wave.opponentKilledInWave = true;
           wave.canReturnToSafezone = true;
           wave.teamKills += 1;
-          bot.log(`[WaveTracker] Lawan tereliminasi! Skor: ${wave.teamKills}/${config.killTarget}`);
+          bot.log(`[WaveTracker] Lawan duel tereliminasi! Skor: ${wave.teamKills}/${config.killTarget}`);
         }
       }
 
-      // D. Safezone Rest Handler (Hanya jika wave telah dimenangkan)
+      // D. Safezone Rest Handler (Otomatis rest saat di Safezone sampai HP penuh)
       const curCellLower = curCell.toLowerCase();
-      if ((curCellLower === "enter0" || curCellLower === "enter1") && wave.canReturnToSafezone) {
-        bot.player.rest(true);
-        wave.waveNumber += 1;
-        wave.waveActive = false;
-        wave.opponentKilledInWave = false;
-        wave.canReturnToSafezone = false;
-        resetPolicyState();
+      const inMySafezone = curCellLower === safezoneCell.toLowerCase();
+      const hpPct = bot.player.maxHealth > 0 ? (bot.player.health / bot.player.maxHealth) : 1.0;
+
+      if (inMySafezone) {
+        if (hpPct < 0.99) {
+          if (!isResting) {
+            isResting = true;
+            bot.log(`[SafezoneRest] Memasuki Safezone dengan HP ${(hpPct * 100).toFixed(0)}%. Memulai rest hingga nyawa penuh...`);
+            try {
+              bot.flash.callGameFunction("world.myAvatar.pMC.stopWalking");
+            } catch (_) {}
+            bot.player.rest(true);
+          }
+          bot.sleep(200);
+          continue; // Matikan seluruh aksi agent (movement & combat) saat mode rest!
+        } else if (isResting) {
+          isResting = false;
+          bot.log(`[SafezoneRest] Nyawa sudah penuh (100%)! Selesai rest, langsung lanjut bergerak.`);
+          wave.waveNumber += 1;
+          wave.waveActive = false;
+          wave.opponentKilledInWave = false;
+          wave.canReturnToSafezone = false;
+          resetPolicyState();
+        }
+      } else {
+        isResting = false;
       }
 
       // E. Status Kesiapan Skill [S1..S4]
