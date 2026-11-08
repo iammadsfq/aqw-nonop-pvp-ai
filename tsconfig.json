@@ -13,5 +13,6 @@
       "turu": ["./src/sdk/turu.ts"]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/tools/**"]
 }

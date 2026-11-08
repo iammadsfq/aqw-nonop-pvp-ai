@@ -1,149 +1,162 @@
 /**
  * @file classic_warrior.ts
- * @description Pilot 1v1 combat policy for Classic Warrior under Non-OP rules.
- *
- * Classic Warrior Skill Kit:
- * - Skill 1: Decisive Strike (Fast physical strike, 2s CD, 15 MP)
- * - Skill 2: Imbalancing Strike (Physical strike + 4s Stun, 10s CD, 25 MP)
- * - Skill 3: Prepared Strike (Buffs next attack to guaranteed Critical Hit, 12s CD, 20 MP)
- * - Skill 4: On Guard (Reduces incoming damage by 50% for 8s, 20s CD, 30 MP)
+ * @description Baseline Greedy Sparring Bot for Classic/Battle Warrior under Non-OP rules.
+ * Digunakan sebagai lawan evaluasi (benchmark) bagi agent Pure RL.
  */
 
-import { findSafeManaTapNpc } from "../rules/shield";
-import type { CombatDecision, CombatObservation } from "../state/types";
+import { ROOM_DOORS, CELL_GRAPH_DIST, WALK_BOUNDS } from "../config/constants";
+import { EntityTracker, TrackedEntity } from "../state/entity_tracker";
+import type {
+  CombatDecision,
+  AtomicCombatAction,
+  AtomicMovementType,
+  AtomicMovementDecision,
+} from "../state/types";
 
-/** Checks if the opponent has an active high-mitigation or dodge/reflect aura. */
-function opponentHasDefensiveWall(obs: CombatObservation): boolean {
-    return obs.targetAuras.some(
-        (a) =>
-            /shieldwall|bulwark|shadowblade|blurred|parry|riposte|reflect/i.test(a.name) &&
-            a.remainingTime > 0.3,
-    );
+function isMeleeRange(x1: number, y1: number, x2: number, y2: number): boolean {
+  // Rectangle combat range AQW: World.as abs(dx) <= 301*1.15 (~340px), abs(dy) <= 30*1.15 (~34px)
+  return Math.abs(x1 - x2) <= 340.0 && Math.abs(y1 - y2) <= 34.0;
 }
 
-/** Checks if the player already has Prepared Strike active. */
-function hasPreparedStrikeBuff(obs: CombatObservation): boolean {
-    return obs.selfAuras.some(
-        (a) => /prepared strike/i.test(a.name) && a.remainingTime > 0.2,
-    );
-}
+export function decideClassicWarriorGreedy(
+  tracker: EntityTracker,
+  skillsReady: number[] = [1, 1, 1, 1]
+): CombatDecision {
+  const self: TrackedEntity = tracker.getSelf();
+  const opp: TrackedEntity | null = tracker.getPrimaryOpponent();
 
-/** Checks if the opponent is currently stunned. */
-function opponentIsStunned(obs: CombatObservation): boolean {
-    return obs.targetAuras.some(
-        (a) => /stun|imbalancing/i.test(a.name) && a.remainingTime > 0.2,
-    );
-}
+  let chosenCombat: AtomicCombatAction = "NONE";
+  let moveType: AtomicMovementType = "STAND";
+  let targetX = self.x;
+  let targetY = self.y;
+  let targetCell: string | undefined = undefined;
+  let targetPad: string | undefined = undefined;
+  let reason = "Idle";
 
-export function decideClassicWarrior1v1(obs: CombatObservation): CombatDecision {
-    // 1. If in Safezone and healthy/mana-ready, advance to the combat cell
-    if (obs.inSafezone) {
-        if (obs.selfHpRatio >= 0.95 && obs.selfMpRatio >= 0.85) {
-            return {
-                action: "ADVANCE_TO_COMBAT_CELL",
-                reason: "HP and Mana full in Safezone; advancing to combat cell.",
-            };
-        }
-        return {
-            action: "IDLE",
-            reason: "Resting in Safezone before next wave.",
-        };
-    }
-
-    // 2. If wave kill/death condition allows returning to Safezone and HP/MP is low, retreat to SZ
-    if (obs.wave.canReturnToSafezone && (obs.selfHpRatio < 0.75 || obs.selfMpRatio < 0.5)) {
-        return {
-            action: "RETREAT_TO_SAFEZONE",
-            reason: "Wave cleared (kill secured); returning to Safezone to reset.",
-        };
-    }
-
-    // 3. Find living opponent in current cell
-    const opponentInCell = obs.opponents.find(
-        (p) => p.cell === obs.currentCell && p.alive,
-    );
-
-    // 4. If Mana is critically low (< 20%) and no opponent is in melee burst range, tap NPC safely
-    if (obs.selfMpRatio < 0.2 && !opponentInCell) {
-        const safeNpc = findSafeManaTapNpc(obs);
-        if (safeNpc) {
-            return {
-                action: "MANA_TAP_NPC",
-                npcMapId: safeNpc.mapId,
-                reason: `Mana low (${Math.round(obs.selfMpRatio * 100)}%); safely tapping ${safeNpc.name} for mana.`,
-            };
-        }
-    }
-
-    if (!opponentInCell) {
-        return {
-            action: "IDLE",
-            reason: "Waiting for opponent in combat cell.",
-        };
-    }
-
-    // 5. Ensure we are targeting the opponent player (and not an NPC)
-    if (!obs.hasTarget || obs.targetIsNpc) {
-        return {
-            action: "TARGET_OPPONENT",
-            targetName: opponentInCell.username,
-            reason: `Acquiring opponent target: ${opponentInCell.username}`,
-        };
-    }
-
-    const [s1Ready, s2Ready, s3Ready, s4Ready] = obs.skillsReady;
-    const enemyHasWall = opponentHasDefensiveWall(obs);
-
-    // 6. Defensive Pop: Use Skill 4 (On Guard - 50% damage reduction) when trading in combat
-    if (s4Ready && obs.selfHpRatio < 0.85 && obs.selfMp >= 30) {
-        return {
-            action: "USE_SKILL_4",
-            reason: "Activating On Guard (50% damage reduction) during active trade.",
-        };
-    }
-
-    // 7. Combo Execution: If Prepared Strike (Guaranteed Crit) is active, immediately fire Skill 1 (Decisive Strike)
-    if (hasPreparedStrikeBuff(obs) && s1Ready) {
-        return {
-            action: "USE_SKILL_1",
-            reason: "Consuming Prepared Strike buff with guaranteed-crit Decisive Strike.",
-        };
-    }
-
-    // 8. Hold burst skills if opponent has an active defensive wall / dodge aura
-    if (enemyHasWall) {
-        return {
-            action: "IDLE",
-            reason: "Holding cooldowns while opponent defensive/dodge aura is active.",
-        };
-    }
-
-    // 9. Stun Lock: Use Skill 2 (Imbalancing Strike) to stun opponent before burst
-    if (s2Ready && !opponentIsStunned(obs) && obs.selfMp >= 25) {
-        return {
-            action: "USE_SKILL_2",
-            reason: "Landing Imbalancing Strike (4s Stun) on unprotected opponent.",
-        };
-    }
-
-    // 10. Burst Setup: Use Skill 3 (Prepared Strike) when Skill 1 is ready or nearly ready
-    if (s3Ready && s1Ready && obs.selfMp >= 35) {
-        return {
-            action: "USE_SKILL_3",
-            reason: "Priming Prepared Strike (100% Crit) for Decisive Strike combo.",
-        };
-    }
-
-    // 11. Sustained DPS: Use Skill 1 (Decisive Strike) when Mana is healthy
-    if (s1Ready && obs.selfMp >= 20) {
-        return {
-            action: "USE_SKILL_1",
-            reason: "Using Decisive Strike for sustained pressure.",
-        };
-    }
-
+  // 1. Jika ter-stun atau mati: Diam total
+  if (self.isStunned || !self.alive) {
     return {
-        action: "IDLE",
-        reason: "Auto-attacking and waiting for cooldowns/mana.",
+      combatAction: "NONE",
+      movement: { type: "STAND", targetX: self.x, targetY: self.y },
+      reason: "Stunned or dead",
     };
+  }
+
+  // 2. Evaluasi Navigasi Spasial (Pengejaran / Kiting)
+  if (!opp || !opp.alive) {
+    // Lawan belum ada / mati: Berdiam di tengah screen
+    targetX = 480;
+    targetY = 360;
+    moveType = "WALK";
+    reason = "No active opponent; holding room center";
+  } else if (self.cell !== opp.cell) {
+    // Lawan di cell lain: Cari pintu yang memendekkan jarak hop BFS menuju goalCell
+    const goalCell =
+      opp.cell === "Enter0"
+        ? "Morale0C"
+        : opp.cell === "Enter1"
+        ? "Morale1C"
+        : opp.cell;
+
+    if (self.cell === goalCell) {
+      targetX = 488;
+      targetY = 351;
+      moveType = "WALK";
+      reason = "Waiting outside opponent safezone";
+    } else {
+      const currentDoors = ROOM_DOORS[self.cell] || [];
+      let bestDoor = currentDoors[0];
+      let minHops = 999;
+
+      for (const door of currentDoors) {
+        if (door.targetCell === "Enter0" || door.targetCell === "Enter1") {
+          continue;
+        }
+        const graphKey = `${door.targetCell}->${goalCell}`;
+        const hops = CELL_GRAPH_DIST[graphKey] ?? 99;
+        if (hops < minHops) {
+          minHops = hops;
+          bestDoor = door;
+        }
+      }
+
+      if (bestDoor) {
+        targetX = Math.round((bestDoor.xMin + bestDoor.xMax) / 2);
+        targetY = Math.round((bestDoor.yMin + bestDoor.yMax) / 2);
+        // Jika SP cukup (>= 50), gunakan sprint untuk mengejar lawan
+        moveType = self.sp_norm >= 0.50 ? "SPRINT" : "WALK";
+        targetCell = bestDoor.targetCell;
+        targetPad = bestDoor.targetPad;
+        reason = `Moving toward door ${bestDoor.targetCell} to hunt opponent`;
+      }
+    }
+  } else {
+    // Lawan di cell yang sama: Bergerak mendekati posisi lawan untuk melee
+    const inRange = isMeleeRange(self.x, self.y, opp.x, opp.y);
+
+    if (!inRange) {
+      targetX = opp.x;
+      targetY = opp.y;
+      moveType = self.sp_norm >= 0.50 ? "SPRINT" : "WALK";
+      reason = "Approaching opponent into melee range";
+    } else {
+      // Sudah dalam range melee: Jaga spacing micro (jitter pelan atau stand)
+      targetX = self.x;
+      targetY = self.y;
+      moveType = "STAND";
+      reason = "In melee range; engaging in combat";
+    }
+  }
+
+  // 3. Evaluasi Rotasi Combat Greedy
+  const sameRoom = opp && self.cell === opp.cell && opp.alive;
+  const inRange = sameRoom && isMeleeRange(self.x, self.y, opp.x, opp.y);
+  const mp = self.mp_norm * 100.0;
+
+  if (sameRoom) {
+    // A. Defensive: On Guard (S4 - 50% Damage Reduction) jika HP < 70%
+    if (inRange && skillsReady[3] && self.hp_norm < 0.70 && mp >= 30.0) {
+      chosenCombat = "USE_SKILL_4";
+      reason = "Defensive: Activating On Guard (S4)";
+    }
+    // B. CC Stun Lock: Imbalancing Strike (S2 - 4s Stun) jika lawan belum stun
+    else if (inRange && skillsReady[1] && !opp.isStunned && mp >= 30.0) {
+      chosenCombat = "USE_SKILL_2";
+      reason = "CC: Landing Imbalancing Strike (S2)";
+    }
+    // C. Combo Priming: Prepared Strike (S3 - Guaranteed Crit) jika S1 siap
+    else if (inRange && skillsReady[2] && skillsReady[0] && mp >= 35.0) {
+      chosenCombat = "USE_SKILL_3";
+      reason = "Combo: Priming Prepared Strike (S3)";
+    }
+    // D. Main Nuke / Strike: Decisive Strike (S1)
+    else if (inRange && skillsReady[0] && mp >= 15.0) {
+      chosenCombat = "USE_SKILL_1";
+      reason = "Damage: Decisive Strike (S1)";
+    }
+    // E. Auto Attack berkelanjutan
+    else if (inRange) {
+      chosenCombat = "AUTO_ATTACK";
+      reason = "Pressure: Auto Attack";
+    }
+  }
+
+  // Clamp target coordinates ke batas stage fisik
+  targetX = Math.round(Math.min(WALK_BOUNDS.xMax, Math.max(WALK_BOUNDS.xMin, targetX)));
+  targetY = Math.round(Math.min(WALK_BOUNDS.yMax, Math.max(WALK_BOUNDS.yMin, targetY)));
+
+  const movement: AtomicMovementDecision = {
+    type: moveType,
+    targetX,
+    targetY,
+    targetCell,
+    targetPad,
+  };
+
+  return {
+    combatAction: chosenCombat,
+    movement,
+    targetName: opp && sameRoom ? opp.username : undefined,
+    reason: `[GreedyBot] ${reason} | Action: ${chosenCombat} | Move: ${moveType} -> (${targetX}, ${targetY})`,
+  };
 }

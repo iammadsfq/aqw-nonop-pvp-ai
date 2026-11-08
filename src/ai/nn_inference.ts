@@ -1,364 +1,368 @@
 /**
  * @file nn_inference.ts
- * @description Sub-millisecond Pure TypeScript Multi-Head Neural Network Inference Engine
- * for executing the Compound Atomic Policy (`COMPOUND_ATOMIC_POLICY_WEIGHTS`).
- *
- * Decouples human-level inputs into 3 orthogonal atomic channels:
- * 1. Combat Action: NONE, AUTO_ATTACK, USE_SKILL_1..4, MANA_TAP_NPC
- * 2. Movement Type: STAND, WALK, SPRINT
- * 3. Spatial Target: Continuous (X, Y) ground coordinates
- *
- * Runs simultaneously on every 100ms frame in pure TypeScript.
+ * @description Pure RL Multi-Head Neural Network Inference Engine (Pure TypeScript Math).
+ * Zero NPM dependencies — Fully native Turu runtime execution.
  */
 
-import {
-    BLUDRUT_16_SCREENS,
-    checkTrajectoryDoorCollision,
-    DoorTriggerArea,
-    findNextDoorTowardCell,
-    getDoorAimCoordinates,
-} from "../config/constants";
-import { findSafeManaTapNpc } from "../rules/shield";
-import { parseAuraCombatInvariants } from "../state/extractor";
+import { ROOM_DOORS, WALK_BOUNDS } from "../config/constants";
+import { EntityTracker, TrackedEntity } from "../state/entity_tracker";
+import { buildEntityObservation } from "./build_entity_obs";
+import { WEIGHTS } from "./weights";
 import type {
-    AtomicCombatAction,
-    AtomicMovementType,
-    CombatDecision,
-    CombatObservation,
+  AtomicCombatAction,
+  AtomicMovementType,
+  CombatDecision,
 } from "../state/types";
-import {
-    COMPOUND_ATOMIC_POLICY_WEIGHTS,
-    type CompoundAtomicPolicySpec,
-} from "./trained_policy_weights";
 
-/**
- * Authentic AQW PvP Melee weapon & skill ranges (reverse-engineered from World.as:9398).
- * In Flash AQW bludrutbrawl PvP:
- * - Horizontal range: abs(dx) <= 301 * 1.15 = 346.15px (we enforce <= 160px for consistent, clean contact)
- * - Vertical elevation limit: abs(dy) <= 30 * 1.15 = 34.5px (~38px max tolerance)
- * Any target with abs(dy) > 38px (e.g. upper platform vs ground) triggers Flash's
- * "You are out of range! Move closer to your target!" error.
- */
-export const MELEE_MAX_DX = 160.0;
-export const MELEE_MAX_DY = 38.0;
+export const MAX_DISP_PX = 300.0;
+const RNN_HIDDEN_DIM = 128;
+const COORD_STD = (WEIGHTS["coord_logstd"] as number[]).map(Math.exp);
 
-export function isMeleeInRange(selfX: number, selfY: number, oppX: number, oppY: number): boolean {
-    const dx = Math.abs(selfX - oppX);
-    const dy = Math.abs(selfY - oppY);
-    return dx <= MELEE_MAX_DX && dy <= MELEE_MAX_DY;
+// Gunakan Float32Array<any> agar kompatibel dengan ArrayBuffer maupun SharedArrayBuffer
+let activeHiddenState: Float32Array<any> = new Float32Array(RNN_HIDDEN_DIM);
+
+export function resetPolicyState(): void {
+  activeHiddenState.fill(0.0);
 }
 
-export function findTargetNavCellAndDoor(
-    currentCell: string,
-    opponents: readonly { alive: boolean; cell?: string }[],
-    selfTeam?: string,
-): { targetNavCell: string; nextDoor: DoorTriggerArea | null } {
-    const isBlueTeam = selfTeam
-        ? selfTeam === "blue"
-        : (currentCell.toLowerCase().includes("0") || currentCell.toLowerCase() === "enter0" || !currentCell.toLowerCase().includes("1"));
-    const enemyB3 = isBlueTeam ? "Morale1C" : "Morale0C";
+export function getPolicyState(): Float32Array<any> {
+  return activeHiddenState;
+}
 
-    const oppInArena = opponents.find(
-        (p) =>
-            p.alive &&
-            p.cell &&
-            p.cell.trim() !== "" &&
-            BLUDRUT_16_SCREENS.some((s) => s.cell.toLowerCase() === p.cell!.toLowerCase()) &&
-            p.cell.toLowerCase() !== "enter0" &&
-            p.cell.toLowerCase() !== "enter1" &&
-            p.cell.toLowerCase() !== "wait",
-    );
+/**
+ * Pertahankan fungsi init untuk kompatibilitas signature main_1v1.ts
+ */
+export function initInferenceSession(): any {
+  return WEIGHTS;
+}
 
-    const oppInSz = opponents.some(
-        (p) =>
-            p.alive &&
-            p.cell &&
-            (p.cell.toLowerCase() === "enter0" || p.cell.toLowerCase() === "enter1"),
-    );
+// =============================================================================
+// NATIVE MATRIX & TENSOR OPERATIONS (Zero NPM)
+// =============================================================================
 
-    let targetNavCell = "Crosslower";
-    if (oppInArena && oppInArena.cell && oppInArena.cell.toLowerCase() !== currentCell.toLowerCase()) {
-        targetNavCell = oppInArena.cell;
-    } else if (oppInSz) {
-        // When opponent is in Safezone, target room right outside their Safezone (spawn camping door)
-        targetNavCell = enemyB3;
+function linear(
+  x: ArrayLike<number>,
+  weight: readonly (readonly number[])[],
+  bias: readonly number[]
+): Float32Array<any> {
+  const outDim = weight.length;
+  const inDim = x.length;
+  const out = new Float32Array(outDim);
+  for (let i = 0; i < outDim; i++) {
+    let sum = bias[i] ?? 0;
+    const row = weight[i]!;
+    for (let j = 0; j < inDim; j++) {
+      sum += (row[j] ?? 0) * x[j]!;
+    }
+    out[i] = sum;
+  }
+  return out;
+}
+
+function layerNorm(
+  x: ArrayLike<number>,
+  weight: readonly number[],
+  bias: readonly number[],
+  eps = 1e-5
+): Float32Array<any> {
+  const n = x.length;
+  let mean = 0;
+  for (let i = 0; i < n; i++) mean += x[i]!;
+  mean /= n;
+
+  let variance = 0;
+  for (let i = 0; i < n; i++) {
+    const diff = x[i]! - mean;
+    variance += diff * diff;
+  }
+  variance /= n;
+
+  const invStd = 1.0 / Math.sqrt(variance + eps);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    out[i] = (x[i]! - mean) * invStd * (weight[i] ?? 1) + (bias[i] ?? 0);
+  }
+  return out;
+}
+
+function tanhAct(x: ArrayLike<number>): Float32Array<any> {
+  const out = new Float32Array(x.length);
+  for (let i = 0; i < x.length; i++) {
+    out[i] = Math.tanh(x[i]!);
+  }
+  return out;
+}
+
+function sigmoid(val: number): number {
+  return 1.0 / (1.0 + Math.exp(-val));
+}
+
+function gruStep(
+  x: Float32Array<any>,
+  hPrev: Float32Array<any>,
+  wIh: readonly (readonly number[])[],
+  wHh: readonly (readonly number[])[],
+  bIh: readonly number[],
+  bHh: readonly number[]
+): Float32Array<any> {
+  const hiddenDim = hPrev.length;
+  const gi = linear(x, wIh, bIh);
+  const gh = linear(hPrev, wHh, bHh);
+  const hNext = new Float32Array(hiddenDim);
+
+  for (let i = 0; i < hiddenDim; i++) {
+    const r = sigmoid(gi[i]! + gh[i]!);
+    const z = sigmoid(gi[i + hiddenDim]! + gh[i + hiddenDim]!);
+    const n = Math.tanh(gi[i + 2 * hiddenDim]! + r * gh[i + 2 * hiddenDim]!);
+    hNext[i] = (1.0 - z) * n + z * hPrev[i]!;
+  }
+
+  return hNext;
+}
+
+function checkSegmentDoorIntersection(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  door: { xMin: number; xMax: number; yMin: number; yMax: number }
+): boolean {
+  if (
+    (x1 >= door.xMin && x1 <= door.xMax && y1 >= door.yMin && y1 <= door.yMax) ||
+    (x2 >= door.xMin && x2 <= door.xMax && y2 >= door.yMin && y2 <= door.yMax)
+  ) {
+    return true;
+  }
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const p = [-dx, dx, -dy, dy];
+  const q = [x1 - door.xMin, door.xMax - x1, y1 - door.yMin, door.yMax - y1];
+  let u1 = 0.0;
+  let u2 = 1.0;
+
+  for (let i = 0; i < 4; i++) {
+    const pi = p[i]!;
+    const qi = q[i]!;
+    if (pi === 0) {
+      if (qi < 0) return false;
     } else {
-        targetNavCell = "Crosslower";
+      const t = qi / pi;
+      if (pi < 0) {
+        if (t > u2) return false;
+        if (t > u1) u1 = t;
+      } else {
+        if (t < u1) return false;
+        if (t < u2) u2 = t;
+      }
     }
+  }
+  return u1 <= u2;
+}
 
-    const nextDoor = findNextDoorTowardCell(currentCell, targetNavCell);
-    return { targetNavCell, nextDoor };
+function sampleFromLogits(logits: ArrayLike<number>, temperature: number): number {
+  if (temperature <= 0.05) {
+    let bestIdx = 0;
+    let bestVal = -Infinity;
+    for (let i = 0; i < logits.length; i++) {
+      if (logits[i]! > bestVal) {
+        bestVal = logits[i]!;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  let maxLogit = -Infinity;
+  for (let i = 0; i < logits.length; i++) {
+    if (logits[i]! > -1e8 && logits[i]! > maxLogit) {
+      maxLogit = logits[i]!;
+    }
+  }
+  if (maxLogit === -Infinity) return 0;
+
+  let sumExp = 0;
+  const expScores = new Array<number>(logits.length);
+  for (let i = 0; i < logits.length; i++) {
+    if (logits[i]! <= -1e8) {
+      expScores[i] = 0;
+    } else {
+      const e = Math.exp((logits[i]! - maxLogit) / temperature);
+      expScores[i] = e;
+      sumExp += e;
+    }
+  }
+
+  if (sumExp <= 0) return 0;
+  let r = Math.random() * sumExp;
+  for (let i = 0; i < logits.length; i++) {
+    r -= expScores[i]!;
+    if (r <= 0) return i;
+  }
+  return logits.length - 1;
+}
+
+export interface InferenceOptions {
+  temperature?: number;
+  deterministic?: boolean;
 }
 
 /**
- * Encodes the live Turu `CombatObservation` into the 28-dimensional normalized
- * observation vector expected by the neural network (`sim/bludrut_env.py`).
- * Incorporates class-agnostic Universal Combat Invariants (damage multipliers & hard CC).
- */
-export function buildObservationVector28(obs: CombatObservation): number[] {
-    const oppInCell = obs.opponents.find(
-        (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
-    );
-    const opp =
-        oppInCell ??
-        obs.opponents.find((p) => p.alive) ??
-        obs.opponents[0];
-
-    const sameCell = opp && opp.cell.toLowerCase() === obs.currentCell.toLowerCase() && opp.alive ? 1.0 : 0.0;
-    const dist =
-        sameCell && opp
-            ? Math.hypot(obs.selfX - opp.x, obs.selfY - opp.y)
-            : 1000.0;
-    const inMelee = sameCell && opp && isMeleeInRange(obs.selfX, obs.selfY, opp.x, opp.y) ? 1.0 : 0.0;
-
-    const screenIdx = Math.max(
-        0,
-        BLUDRUT_16_SCREENS.findIndex(
-            (s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase(),
-        ),
-    );
-
-    const oppScreenIdx = opp && opp.cell && opp.cell.trim() !== ""
-        ? Math.max(0, BLUDRUT_16_SCREENS.findIndex((s) => s.cell.toLowerCase() === opp.cell.toLowerCase()))
-        : 7; // default mid (7)
-
-    const isBlueTeam = obs.selfTeam
-        ? obs.selfTeam === "blue"
-        : (obs.currentCell.toLowerCase().includes("0") || obs.currentCell.toLowerCase() === "enter0" || !obs.currentCell.toLowerCase().includes("1"));
-    const ownSz = isBlueTeam ? "Enter0" : "Enter1";
-
-    const awaySec = obs.awayFromMidSeconds ?? 0.0;
-    const midTimerRatio = Math.min(1.0, awaySec / 60.0);
-
-    const { targetNavCell, nextDoor: rawNextDoor } = findTargetNavCellAndDoor(
-        obs.currentCell,
-        obs.opponents,
-        obs.selfTeam,
-    );
-    const nextDoor = !sameCell ? rawNextDoor : null;
-
-    let targetRelX = 0.0;
-    let targetRelY = 0.0;
-    if (sameCell && opp) {
-        targetRelX = (opp.x - obs.selfX) / 960.0;
-        targetRelY = (opp.y - obs.selfY) / 550.0;
-    } else if (nextDoor) {
-        const aim = getDoorAimCoordinates(nextDoor, obs.selfX, obs.selfY);
-        targetRelX = (aim.x - obs.selfX) / 960.0;
-        targetRelY = (aim.y - obs.selfY) / 550.0;
-    }
-
-    const safeNpc = findSafeManaTapNpc(obs);
-
-    // Universal Combat Invariants (Class-Agnostic):
-    const selfInv = parseAuraCombatInvariants(obs.selfAuras);
-    const oppAuras: readonly { name: string; type?: string; category?: string }[] = [
-        ...(opp?.auras ?? []),
-        ...(obs.targetAuras ?? []),
-    ];
-    const oppInv = parseAuraCombatInvariants(oppAuras);
-
-    const selfInDmgMultiplier = selfInv.inDmgMultiplier;
-    const selfHardCc = obs.selfStunned || selfInv.hardCc > 0.5 ? 1.0 : 0.0;
-    const oppInDmgMultiplier = oppInv.inDmgMultiplier;
-    const oppHardCc = oppInv.hardCc;
-
-    const vec = [
-        obs.selfHpRatio ?? (obs.selfMaxHp > 0 ? obs.selfHp / obs.selfMaxHp : 1.0), // 0: self HP ratio
-        obs.selfMpRatio ?? (obs.selfMaxMp > 0 ? obs.selfMp / obs.selfMaxMp : 1.0), // 1: self MP ratio
-        obs.selfSpRatio ?? (obs.selfMaxSp > 0 ? obs.selfSp / obs.selfMaxSp : 1.0), // 2: self Stamina (intSP) ratio
-        obs.canSprint ? 1.0 : 0.0,                           // 3: can sprint (SP >= 50)
-        obs.selfInCombat ? 1.0 : 0.0,                        // 4: self in combat
-        obs.selfInCombat ? 0.0 : 0.8,                        // 5: OOC timer progress
-        screenIdx / 15.0,                                    // 6: normalized screen index
-        Math.min(1.0, Math.max(0.0, obs.selfX / 960.0)),     // 7: self X
-        Math.min(1.0, Math.max(0.0, obs.selfY / 550.0)),     // 8: self Y
-        obs.selfAlive !== false ? 1.0 : 0.0,                 // 9: self alive
-        obs.skillsReady[0] ? 1.0 : 0.0,                      // 10: skill 1 ready
-        obs.skillsReady[1] ? 1.0 : 0.0,                      // 11: skill 2 ready
-        obs.skillsReady[2] ? 1.0 : 0.0,                      // 12: skill 3 ready
-        obs.skillsReady[3] ? 1.0 : 0.0,                      // 13: skill 4 ready
-        oppScreenIdx / 15.0,                                 // 14: opp screen index
-        Math.min(1.0, Math.max(-1.0, targetRelX)),           // 15: primary target relative X (opp in room, or exit door when roaming)
-        Math.min(1.0, Math.max(-1.0, targetRelY)),           // 16: primary target relative Y (opp in room, or exit door when roaming)
-        midTimerRatio,                                       // 17: mid timer progress ratio
-        selfInDmgMultiplier,                                 // 18: self incoming damage multiplier (0.50 if barrier, 1.0 normal)
-        selfHardCc,                                          // 19: self stunned / disabled
-        oppInDmgMultiplier,                                  // 20: opp incoming damage multiplier (0.50 if barrier, 1.0 normal)
-        oppHardCc,                                           // 21: opp stunned / disabled
-        opp && opp.alive ? 1.0 : 0.0,                        // 22: opp alive
-        sameCell,                                            // 23: opp in same cell
-        Math.min(1.0, dist / 1000.0),                        // 24: distance to opp
-        inMelee,                                             // 25: in melee range
-        opp ? opp.hp / Math.max(1, opp.maxHp) : 0.0,         // 26: opp HP ratio
-        safeNpc ? 1.0 : 0.0,                                 // 27: safe NPC available
-    ];
-
-    return vec;
-}
-
-/** Backwards-compatible alias for buildObservationVector28 */
-export const buildObservationVector26 = buildObservationVector28;
-
-function denseTanh(x: readonly number[], w: readonly (readonly number[])[], b: readonly number[]): number[] {
-    const out = new Array<number>(w.length);
-    for (let i = 0; i < w.length; i++) {
-        const row = w[i]!;
-        let sum = b[i]!;
-        for (let j = 0; j < row.length; j++) {
-            sum += row[j]! * x[j]!;
-        }
-        out[i] = Math.tanh(sum);
-    }
-    return out;
-}
-
-function denseLinear(x: readonly number[], w: readonly (readonly number[])[], b: readonly number[]): number[] {
-    const out = new Array<number>(w.length);
-    for (let i = 0; i < w.length; i++) {
-        const row = w[i]!;
-        let sum = b[i]!;
-        for (let j = 0; j < row.length; j++) {
-            sum += row[j]! * x[j]!;
-        }
-        out[i] = sum;
-    }
-    return out;
-}
-
-function sigmoid(z: number): number {
-    return 1 / (1 + Math.exp(-z));
-}
-
-/**
- * Runs forward inference through the Compound Atomic Policy MLP.
- * Simultaneously predicts:
- * 1. Atomic Combat Action (`USE_SKILL_1..4`, `AUTO_ATTACK`, `NONE`, `MANA_TAP_NPC`)
- * 2. Atomic Movement Decision (`STAND`, `WALK`, `SPRINT` to `targetX, targetY`)
+ * Inferensi Pure RL Multi-Head: Forward pass linear murni via bobot TypeScript
  */
 export function inferBattleWarriorDecision(
-    obs: CombatObservation,
-    policy: CompoundAtomicPolicySpec = COMPOUND_ATOMIC_POLICY_WEIGHTS,
+  tracker: EntityTracker,
+  _session: any,
+  skillsReady: number[] = [1, 1, 1, 1],
+  inCombat: boolean = false,
+  outOfCombatTimer: number = 0.0,
+  options: InferenceOptions = {}
 ): CombatDecision {
-    const oppInCell = obs.opponents.find(
-        (p) => p.cell.toLowerCase() === obs.currentCell.toLowerCase() && p.alive,
-    );
-    const inMelee = Boolean(oppInCell && isMeleeInRange(obs.selfX, obs.selfY, oppInCell.x, oppInCell.y));
-    const sameCell = Boolean(oppInCell && oppInCell.alive);
-    const safeNpc = findSafeManaTapNpc(obs);
+  const temperature = options.deterministic ? 0.0 : (options.temperature ?? 0.6);
+  const self: TrackedEntity = tracker.getSelf();
+  const opp: TrackedEntity | null = tracker.getPrimaryOpponent();
 
-    // Shared Neural Backbone forward pass
-    const x = buildObservationVector28(obs);
-    const h1 = denseTanh(x, policy.w1, policy.b1);
-    const h2 = denseTanh(h1, policy.w2, policy.b2);
+  const w = WEIGHTS;
 
-    // Head 1: Combat Action logits
-    const rawCombatLogits = denseLinear(h2, policy.wCombat, policy.bCombat);
-    const combatLogits = [...rawCombatLogits];
+  // 1. Ekstraksi Observasi Kanonikal 30-dim
+  const obs = buildEntityObservation(tracker, skillsReady, inCombat, outOfCombatTimer);
 
-    // Mask physically impossible actions and rule violations only.
-    // Pure learned policy: NEVER hardcode tactical combat behaviors or arbitrary logit boosts!
-    if (!inMelee) {
-        combatLogits[2] = -1e9; // S1 physical melee range limit
-        combatLogits[3] = -1e9; // S2 physical melee range limit
+  // 2. Forward Pass: Self Encoder (0..16)
+  const selfInput = obs.subarray(0, 17);
+  let selfFeat = linear(selfInput, w["self_encoder.0.weight"], w["self_encoder.0.bias"]);
+  selfFeat = layerNorm(selfFeat, w["self_encoder.1.weight"], w["self_encoder.1.bias"]);
+  selfFeat = tanhAct(selfFeat);
+
+  // 3. Forward Pass: Opponent Encoder (17..29)
+  const oppInput = obs.subarray(17, 30);
+  let oppFeat = linear(oppInput, w["opp_encoder.0.weight"], w["opp_encoder.0.bias"]);
+  oppFeat = layerNorm(oppFeat, w["opp_encoder.1.weight"], w["opp_encoder.1.bias"]);
+  oppFeat = tanhAct(oppFeat);
+
+  // 4. Fusion Layer (128 -> 128)
+  const fusedInput = new Float32Array(128);
+  fusedInput.set(selfFeat, 0);
+  fusedInput.set(oppFeat, 64);
+  let fused = linear(fusedInput, w["fusion.0.weight"], w["fusion.0.bias"]);
+  fused = layerNorm(fused, w["fusion.1.weight"], w["fusion.1.bias"]);
+  fused = tanhAct(fused);
+
+  // 5. Recurrent GRU Step
+  activeHiddenState = gruStep(
+    fused,
+    activeHiddenState,
+    w["gru.weight_ih_l0"],
+    w["gru.weight_hh_l0"],
+    w["gru.bias_ih_l0"],
+    w["gru.bias_hh_l0"]
+  );
+
+  // 6. Multi-Head Outputs
+  const rawCombatLogits = linear(activeHiddenState, w["combat_head.weight"], w["combat_head.bias"]);
+  const rawMoveLogits = linear(activeHiddenState, w["move_head.weight"], w["move_head.bias"]);
+  const rawCoordMu = tanhAct(linear(activeHiddenState, w["coord_mu_head.weight"], w["coord_mu_head.bias"]));
+
+  // 7. Action Masking - Head 1: Combat
+  const combatLogits = new Float32Array(rawCombatLogits);
+  const sameRoom = Boolean(opp && self.cell === opp.cell && opp.alive);
+  const inRange = Boolean(sameRoom && Math.abs(self.x - opp!.x) <= 340.0 && Math.abs(self.y - opp!.y) <= 34.0);
+  const selfMp = self.mp_norm * 100.0;
+
+  if (!inRange) {
+    combatLogits[1] = -1e9; // AA
+    combatLogits[2] = -1e9; // S1
+    combatLogits[3] = -1e9; // S2
+    combatLogits[5] = -1e9; // S4 (On Guard membutuhkan target hostile dalam jangkauan)
+  }
+  if (!sameRoom) {
+    combatLogits[1] = -1e9;
+  }
+
+  if (!skillsReady[0] || selfMp < 15.0) combatLogits[2] = -1e9;
+  if (!skillsReady[1] || selfMp < 30.0) combatLogits[3] = -1e9;
+  if (!skillsReady[2] || selfMp < 20.0) combatLogits[4] = -1e9;
+  if (!skillsReady[3] || selfMp < 30.0) combatLogits[5] = -1e9;
+
+  if (self.isStunned) {
+    for (let i = 1; i < 6; i++) combatLogits[i] = -1e9;
+  }
+
+  const combatIdx = sampleFromLogits(combatLogits, temperature);
+  const combatMap: AtomicCombatAction[] = [
+    "NONE",
+    "AUTO_ATTACK",
+    "USE_SKILL_1",
+    "USE_SKILL_2",
+    "USE_SKILL_3",
+    "USE_SKILL_4",
+  ];
+  const chosenCombat: AtomicCombatAction = combatMap[combatIdx] ?? "NONE";
+
+  // 8. Action Masking - Head 2: Movement Type
+  const moveLogits = new Float32Array(rawMoveLogits);
+  if (self.sp_norm < 0.50) {
+    moveLogits[2] = -1e9;
+  }
+  if (self.isStunned) {
+    moveLogits[1] = -1e9;
+    moveLogits[2] = -1e9;
+  }
+
+  const moveIdx = sampleFromLogits(moveLogits, temperature);
+  const moveMap: AtomicMovementType[] = ["STAND", "WALK", "SPRINT"];
+  const chosenMoveType: AtomicMovementType = moveMap[moveIdx] ?? "STAND";
+
+  // 9. Action Head 3: Continuous Point Target Vector
+  let normX = rawCoordMu[0]!;
+  let normY = rawCoordMu[1]!;
+
+  if (temperature > 0.05) {
+    const u1 = Math.max(1e-6, Math.random());
+    const u2 = Math.random();
+    const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+    const z1 = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(2.0 * Math.PI * u2);
+
+    normX = Math.min(1.0, Math.max(-1.0, normX + z0 * COORD_STD[0]! * temperature));
+    normY = Math.min(1.0, Math.max(-1.0, normY + z1 * COORD_STD[1]! * temperature));
+  }
+
+  normX = Math.min(1.0, Math.max(-1.0, normX));
+  normY = Math.min(1.0, Math.max(-1.0, normY));
+
+  const targetX = Math.round(
+    Math.min(WALK_BOUNDS.xMax, Math.max(WALK_BOUNDS.xMin, self.x + normX * MAX_DISP_PX))
+  );
+  const targetY = Math.round(
+    Math.min(WALK_BOUNDS.yMax, Math.max(WALK_BOUNDS.yMin, self.y + normY * MAX_DISP_PX))
+  );
+
+  // 10. Segment Door Detection
+  let targetCell: string | undefined = undefined;
+  let targetPad: string | undefined = undefined;
+
+  if (chosenMoveType !== "STAND") {
+    const currentDoors = ROOM_DOORS[self.cell] || [];
+    for (const door of currentDoors) {
+      if (checkSegmentDoorIntersection(self.x, self.y, targetX, targetY, door)) {
+        targetCell = door.targetCell;
+        targetPad = door.targetPad;
+        break;
+      }
     }
-    // S4 (On Guard) can strike opponent in melee, or tap safe NPC when alone to pre-buff
-    const s4CanHit = inMelee || (Boolean(safeNpc) && !sameCell);
-    if (!s4CanHit) {
-        combatLogits[5] = -1e9; // S4 physical melee range limit
-    }
-    if (!obs.skillsReady[0]) combatLogits[2] = -1e9; // S1 on cooldown
-    if (!obs.skillsReady[1]) combatLogits[3] = -1e9; // S2 on cooldown
-    if (!obs.skillsReady[2]) combatLogits[4] = -1e9; // S3 on cooldown
-    if (!obs.skillsReady[3]) combatLogits[5] = -1e9; // S4 on cooldown
+  }
 
-    let bestCombatIdx = 0;
-    let bestCombatScore = -Infinity;
-    for (let i = 0; i < combatLogits.length; i++) {
-        if (combatLogits[i]! > bestCombatScore) {
-            bestCombatScore = combatLogits[i]!;
-            bestCombatIdx = i;
-        }
-    }
-
-    const combatActionMap: AtomicCombatAction[] = [
-        "NONE",
-        "AUTO_ATTACK",
-        "USE_SKILL_1",
-        "USE_SKILL_2",
-        "USE_SKILL_3",
-        "USE_SKILL_4",
-    ];
-    const chosenCombatAction: AtomicCombatAction = combatActionMap[bestCombatIdx] ?? "AUTO_ATTACK";
-
-    // Head 2: Movement Type logits
-    const rawMoveLogits = denseLinear(h2, policy.wMoveType, policy.bMoveType);
-    const moveLogits = [...rawMoveLogits];
-
-    if (!obs.canSprint) moveLogits[2] = -1e9; // Cannot sprint if SP < 50
-    if (obs.selfStunned) {
-        moveLogits[1] = -1e9; // Cannot walk while stunned
-        moveLogits[2] = -1e9; // Cannot sprint while stunned
-    }
-
-    let bestMoveIdx = 0;
-    let bestMoveScore = -Infinity;
-    for (let i = 0; i < moveLogits.length; i++) {
-        if (moveLogits[i]! > bestMoveScore) {
-            bestMoveScore = moveLogits[i]!;
-            bestMoveIdx = i;
-        }
-    }
-
-    const moveTypeMap: AtomicMovementType[] = ["STAND", "WALK", "SPRINT"];
-    const chosenMoveType: AtomicMovementType = moveTypeMap[bestMoveIdx] ?? "STAND";
-
-    // Head 3: 100% Pure Atomic Neural Network Target Coordinates (Continuous Sigmoid in [0, 1])
-    const coordRaw = denseLinear(h2, policy.wCoord, policy.bCoord);
-    const normX = sigmoid(coordRaw[0] ?? 0.0);
-    const normY = sigmoid(coordRaw[1] ?? 0.0);
-
-    const targetX = Math.round(40.0 + normX * 880.0);
-    const targetY = Math.round(240.0 + normY * 260.0);
-
-    // Physical Door Trigger Collision (matching Bludrut1v1Env._move_fighter):
-    // Pure physics interaction: If the avatar's chosen continuous coordinates or trajectory
-    // touch a physical door trigger area, the door naturally triggers the screen transition!
-    // No hardcoded routing fallback or coordinate overriding is permitted.
-    let targetCell: string | undefined = undefined;
-    let targetPad: string | undefined = undefined;
-
-    if (chosenMoveType !== "STAND") {
-        const currentScreen = BLUDRUT_16_SCREENS.find((s) => s.cell.toLowerCase() === obs.currentCell.toLowerCase());
-        const hitDoor = currentScreen?.doors.find((d) => {
-            const inBox = targetX >= d.xMin && targetX <= d.xMax && targetY >= d.yMin && targetY <= d.yMax;
-            const nearAim = Math.hypot(targetX - d.aimX, targetY - d.aimY) < 60;
-            return inBox || nearAim;
-        });
-
-        if (hitDoor) {
-            targetCell = hitDoor.targetCell;
-            targetPad = hitDoor.targetPad;
-        } else {
-            const trajHit = checkTrajectoryDoorCollision(obs.currentCell, obs.selfX, obs.selfY, targetX, targetY);
-            if (trajHit) {
-                targetCell = trajHit.door.targetCell;
-                targetPad = trajHit.door.targetPad;
-            }
-        }
-    }
-
-    return {
-        combatAction: chosenCombatAction,
-        movement: {
-            type: chosenMoveType,
-            targetX,
-            targetY,
-            targetCell,
-            targetPad,
-        },
-        targetName: oppInCell ? oppInCell.username : undefined,
-        npcMapId: !oppInCell && chosenCombatAction === "USE_SKILL_4" && safeNpc ? safeNpc.mapId : undefined,
-        reason: `[AtomicPolicy] Action: ${chosenCombatAction} | Move: ${chosenMoveType} -> (${targetX}, ${targetY})${targetCell ? ` [Door -> ${targetCell}]` : ""}`,
-    };
+  return {
+    combatAction: chosenCombat,
+    movement: {
+      type: chosenMoveType,
+      targetX,
+      targetY,
+      targetCell,
+      targetPad,
+    },
+    targetName: opp && sameRoom ? opp.username : undefined,
+    reason: `[PureRL] Action: ${chosenCombat} | Move: ${chosenMoveType} -> (${targetX}, ${targetY})${
+      targetCell ? ` [Door: ${targetCell}]` : ""
+    }`,
+  };
 }

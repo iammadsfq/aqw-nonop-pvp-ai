@@ -50,8 +50,10 @@ interface AuraMeta {
 
 const STATIC_AURA_CATALOG: Record<string, AuraMeta> = {
   "on guard": { inDmgMult: 0.50 },
+  "prepared strike": { outDmgMult: 1.15 },
   "inhibition": { outDmgMult: 0.70 },
   "off balance": { cat: "stun" },
+  "imbalance": { cat: "stun" },
 };
 
 export class EntityTracker {
@@ -242,8 +244,11 @@ export class EntityTracker {
     if (!dataObj.sta) return;
     const s = dataObj.sta;
     if (typeof s["$cai"] === "number") this.selfLocalStats.inDmgMult = s["$cai"];
-    if (typeof s["$cao"] === "number") this.selfLocalStats.outDmgMult = s["$cao"];
-    if (typeof s["$cmo"] === "number") this.selfLocalStats.outDmgMult = Math.max(this.selfLocalStats.outDmgMult, s["$cmo"]);
+    let outMult = 1.0;
+    if (typeof s["$cao"] === "number") outMult = s["$cao"];
+    if (typeof s["$cpo"] === "number") outMult = Math.max(outMult, s["$cpo"]);
+    if (typeof s["$cmo"] === "number") outMult = Math.max(outMult, s["$cmo"]);
+    this.selfLocalStats.outDmgMult = outMult;
     if (typeof s["$cmc"] === "number") this.selfLocalStats.manaCostMult = s["$cmc"];
     if (typeof s["$tcr"] === "number") this.selfLocalStats.critRate = s["$tcr"];
     if (typeof s["$tdo"] === "number") this.selfLocalStats.dodgeRate = s["$tdo"];
@@ -495,14 +500,8 @@ export class EntityTracker {
       if (aura.inDmgMult !== undefined) inMult *= aura.inDmgMult;
     }
 
-    if (ent.username === this.myUsername) {
-      ent.stats.outDmgMult = this.selfLocalStats.outDmgMult;
-      ent.stats.inDmgMult = this.selfLocalStats.inDmgMult;
-    } else {
-      ent.stats.outDmgMult = outMult;
-      ent.stats.inDmgMult = inMult;
-    }
-
+    ent.stats.outDmgMult = outMult;
+    ent.stats.inDmgMult = inMult;
     ent.isStunned = isStunned;
     ent.hardCcRem = maxCc;
   }
@@ -556,8 +555,6 @@ export class EntityTracker {
 
     for (const [uName, ent] of this.entities.entries()) {
       if (uName === this.myUsername) {
-        ent.stats.inDmgMult = this.selfLocalStats.inDmgMult;
-        ent.stats.outDmgMult = this.selfLocalStats.outDmgMult;
         ent.stats.manaCostMult = this.selfLocalStats.manaCostMult;
         ent.stats.critRate = this.selfLocalStats.critRate;
         ent.stats.dodgeRate = this.selfLocalStats.dodgeRate;
@@ -617,15 +614,40 @@ export class EntityTracker {
     );
   }
 
-  public getPrimaryOpponent(): TrackedEntity | null {
+  /**
+   * Mendapatkan musuh hidup yang berada di cell/ruangan yang sama saat ini.
+   */
+  public getSameCellOpponent(): TrackedEntity | null {
     const enemies = this.getEnemies();
     if (enemies.length === 0) return null;
     const myCell = bot.player.cell;
     return enemies.find((e) => e.cell === myCell && e.alive) ?? null;
   }
 
-  public getGlobalTarget(): TrackedEntity | null {
+  /**
+   * Mendapatkan target lawan utama di arena (prioritas: musuh hidup di cell yang sama,
+   * fallback ke musuh hidup di cell lain, lalu fallback ke musuh yang sedang respawn).
+   */
+  public getTargetOpponent(): TrackedEntity | null {
     const enemies = this.getEnemies();
-    return enemies.find((e) => e.alive) ?? enemies[0] ?? null;
+    if (enemies.length === 0) return null;
+    const myCell = bot.player.cell;
+    return (
+      enemies.find((e) => e.cell === myCell && e.alive) ??
+      enemies.find((e) => e.alive) ??
+      enemies[0] ??
+      null
+    );
+  }
+
+  /**
+   * Alias untuk kompatibilitas: memprioritaskan musuh satu cell, fallback ke target global.
+   */
+  public getPrimaryOpponent(): TrackedEntity | null {
+    return this.getTargetOpponent();
+  }
+
+  public getGlobalTarget(): TrackedEntity | null {
+    return this.getTargetOpponent();
   }
 }
