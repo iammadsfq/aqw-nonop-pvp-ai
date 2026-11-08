@@ -202,6 +202,7 @@ class Entity:
     touched_mid: bool = False
     illegal_sz_entered: bool = False
     used_sprint: bool = False
+    sprint_rem: float = 0.0
     respawn_timer: float = 0.0
 
     @property
@@ -242,9 +243,11 @@ class Entity:
         self.touched_mid = False
         self.illegal_sz_entered = False
         self.used_sprint = False
+        self.sprint_rem = 0.0
 
     def tick_status(self, dt: float, is_regen_tick: bool) -> None:
         if not self.is_alive:
+            self.sprint_rem = 0.0
             self.respawn_timer = max(0.0, self.respawn_timer - dt)
             if self.respawn_timer <= 1e-4:
                 self.is_alive = True
@@ -260,6 +263,7 @@ class Entity:
                 self.can_enter_sz = False
                 self.touched_mid = False
                 self.illegal_sz_entered = False
+                self.sprint_rem = 0.0
                 sz_cell = "Enter0" if self.team == 0 else "Enter1"
                 self.cell = sz_cell
                 self.x = SAFEZONE_SPAWN[sz_cell]["x"]
@@ -267,6 +271,7 @@ class Entity:
             return
 
         self.gcd_rem = max(0.0, self.gcd_rem - dt)
+        self.sprint_rem = max(0.0, self.sprint_rem - dt)
         for i in range(len(self.cooldowns)):
             self.cooldowns[i] = max(0.0, self.cooldowns[i] - dt)
 
@@ -718,6 +723,7 @@ class BludrutBrawlEnv:
     def _process_movement(self, ent: Entity, act: ActionSpec) -> None:
         ent.used_sprint = False
         if not ent.is_alive or ent.is_stunned or act.move_type == 0:
+            ent.sprint_rem = 0.0
             return
 
         target_x = float(np.clip(ent.x + act.target_dx * MAX_DISP_PX, FLOOR_X_MIN, FLOOR_X_MAX))
@@ -727,14 +733,21 @@ class BludrutBrawlEnv:
         dist = math.hypot(dx, dy)
 
         if dist < 1e-4:
+            ent.sprint_rem = 0.0
             return
 
         speed = BASE_SPEED_PX
         if act.move_type == 2:  # SPRINT
-            if ent.sp >= SP_SPRINT_COST:
-                ent.sp -= SP_SPRINT_COST
+            if ent.sprint_rem > 0.0:
                 speed *= SPRINT_MULT
                 ent.used_sprint = True
+            elif ent.sp >= SP_SPRINT_COST:
+                ent.sp -= SP_SPRINT_COST
+                ent.sprint_rem = 1.0  # Telemetri AQW: 1x bayar 50 SP = status sprint (speed=24) selama 1.0 detik (~480 px)
+                speed *= SPRINT_MULT
+                ent.used_sprint = True
+        elif ent.sprint_rem > 0.0:
+            speed *= SPRINT_MULT
 
         step_dist = min(dist, speed)
         next_x = ent.x + (dx / dist) * step_dist
@@ -761,6 +774,7 @@ class BludrutBrawlEnv:
                 ent.cell = door.target_cell
                 ent.x = door.spawn_x
                 ent.y = door.spawn_y
+                ent.sprint_rem = 0.0
 
                 if prev_cell in ("Enter0", "Enter1") and ent.cell not in ("Enter0", "Enter1"):
                     ent.can_enter_sz = False

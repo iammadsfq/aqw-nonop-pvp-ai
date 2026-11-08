@@ -249,18 +249,19 @@ def select_greedy_sparring_action(ent: Entity, opp: Entity) -> ActionSpec:
             target_dx = float(dist_x / (MAX_DISP_PX * scale))
             target_dy = float(dist_y / (MAX_DISP_PX * scale))
     else:
-        # Tentukan cell tujuan (jangan masuk ke safezone musuh)
-        if not opp.is_alive:
-            goal_cell = "Morale1C" if ent.team == 0 else "Morale0C"
-        elif opp.cell == "Enter0":
-            goal_cell = "Morale0C"
-        elif opp.cell == "Enter1":
-            goal_cell = "Morale1C"
+        # Navigasi Invarian menuju Mid (Crosslower):
+        # Selama lawan tidak berada di ruangan yang sama (not same_room), setiap ruangan di luar
+        # Crosslower selalu mengarahkan agen melalui rute terpendek menuju Mid (Crosslower) tanpa
+        # pernah tersesat ke Captain0/1 atau berbalik arah saat baru respawn.
+        if ent.cell != "Crosslower":
+            goal_cell = "Crosslower"
+        elif not opp.is_alive or opp.cell in ("Enter0", "Enter1", "Captain0", "Captain1"):
+            goal_cell = "Crosslower"
         else:
             goal_cell = opp.cell
 
         if ent.cell == goal_cell:
-            # Sudah di cell tujuan (misal menunggu lawan keluar dari safezone)
+            # Sudah di cell tujuan (misal menunggu lawan di Crosslower)
             dist_x = 488.0 - ent.x
             dist_y = 351.0 - ent.y
             if math.hypot(dist_x, dist_y) > 25.0:
@@ -273,8 +274,10 @@ def select_greedy_sparring_action(ent: Entity, opp: Entity) -> ActionSpec:
             best_door = None
             min_hops = 999
             for door in doors:
-                # Jangan masuk safezone saat berburu lawan
+                # Jangan masuk safezone atau ruang Captain saat menuju Mid/lawan
                 if door.target_cell in ("Enter0", "Enter1"):
+                    continue
+                if door.target_cell in ("Captain0", "Captain1") and goal_cell != door.target_cell:
                     continue
                 hops = CELL_GRAPH_DIST.get((door.target_cell, goal_cell), 99)
                 if hops < min_hops:
@@ -284,9 +287,32 @@ def select_greedy_sparring_action(ent: Entity, opp: Entity) -> ActionSpec:
             if best_door is not None:
                 door_x = 0.5 * (best_door.x_min + best_door.x_max)
                 door_y = 0.5 * (best_door.y_min + best_door.y_max)
+                # Pintu bawah penuh (Captain0, Captain1, Crossupper -> y=[455..500]):
+                # cukup turun vertikal dengan komponen dy tajam menuju y=495
+                if best_door.y_min >= 450.0:
+                    door_x = float(np.clip(ent.x, 260.0, 700.0))
+                    door_y = 495.0
+                    dist_x = door_x - ent.x
+                    dist_y = (door_y - ent.y) * 2.2
+                # Hindari menyenggol pintu Captain0/Captain1 (x=[401..573], y=[275..300]) saat melintasi Morale0C/1C
+                # tanpa pernah memberi vektor dy > 0 (turun): cukup jaga y >= 306 sampai melewati x pintu Captain.
+                elif ent.cell == "Morale0C" and best_door.target_cell == "Morale0B" and ent.x < 575.0:
+                    door_x = 650.0
+                    door_y = min(ent.y, 306.0)
+                    dist_x = door_x - ent.x
+                    dist_y = door_y - ent.y
+                elif ent.cell == "Morale1C" and best_door.target_cell == "Morale1B" and ent.x > 395.0:
+                    door_x = 320.0
+                    door_y = min(ent.y, 306.0)
+                    dist_x = door_x - ent.x
+                    dist_y = door_y - ent.y
+                else:
+                    # Pintu koridor atas (y=[255..300]): tarik vertikal lebih kuat (2.2x) ke y=268
+                    # agar agen sudah berada di y=268..285 sebelum mencapai batas x pintu (765 / 220).
+                    door_y = 268.0
+                    dist_x = door_x - ent.x
+                    dist_y = (door_y - ent.y) * 2.2
                 move_type = 2 if m_mask[2] else 1
-                dist_x = door_x - ent.x
-                dist_y = door_y - ent.y
                 scale = max(1.0, math.hypot(dist_x, dist_y) / MAX_DISP_PX)
                 target_dx = float(dist_x / (MAX_DISP_PX * scale))
                 target_dy = float(dist_y / (MAX_DISP_PX * scale))

@@ -553,6 +553,61 @@ export class EntityTracker {
       this.myUsername = bot.player.username.toLowerCase();
     }
 
+    if (this.myPvpTeam === -1 && bot.player?.loggedIn) {
+      const flashTeam =
+        bot.flash?.get<number>("world.myAvatar.objData.pvpTeam") ??
+        bot.flash?.get<number>("world.myAvatar.pvpTeam");
+      if (typeof flashTeam === "number" && (flashTeam === 0 || flashTeam === 1)) {
+        this.myPvpTeam = flashTeam;
+      } else {
+        const c = (bot.player.cell || "").toLowerCase();
+        if (c.includes("0")) this.myPvpTeam = 0;
+        else if (c.includes("1")) this.myPvpTeam = 1;
+      }
+      if (this.myPvpTeam !== -1) {
+        const selfEnt = this.getOrCreateEntity(this.myUsername);
+        this.setEntityPvpTeam(selfEnt, this.myPvpTeam);
+        this.refreshAllies();
+      }
+    }
+
+    if (bot.map?.playerNames) {
+      for (const rawName of bot.map.playerNames) {
+        const uName = rawName.toLowerCase();
+        if (!uName || uName === this.myUsername) continue;
+        const p: PlayerInfo | null = bot.map.getPlayer(rawName);
+        if (!p) continue;
+
+        const ent = this.getOrCreateEntity(uName);
+        if (p.entId) {
+          ent.entId = p.entId;
+          this.entIdToName.set(p.entId, uName);
+        }
+        if (p.cell) ent.cell = p.cell;
+        if (typeof p.x === "number" && (p.x !== 0 || ent.x === 0)) ent.x = p.x;
+        if (typeof p.y === "number" && (p.y !== 0 || ent.y === 0)) ent.y = p.y;
+        if (typeof p.maxHp === "number" && p.maxHp > 0) ent.maxHp = p.maxHp;
+        if (typeof p.hp === "number") {
+          ent.currentHp = Math.max(0, p.hp);
+          ent.hp_norm = ent.maxHp > 0 ? Math.min(1.0, Math.max(0.0, ent.currentHp / ent.maxHp)) : 0.0;
+        }
+        if (typeof p.mp === "number") {
+          ent.mp_norm = Math.min(1.0, Math.max(0.0, p.mp / 100.0));
+        }
+        if (typeof p.state === "number") {
+          ent.alive = p.state !== 0 && ent.currentHp > 0;
+        }
+        if (ent.pvpTeam === -1) {
+          const uoTeam = bot.flash?.get<number>(`world.uoTree.${uName}.pvpTeam`);
+          if (typeof uoTeam === "number" && (uoTeam === 0 || uoTeam === 1)) {
+            this.setEntityPvpTeam(ent, uoTeam);
+          } else if (this.myPvpTeam !== -1) {
+            this.setEntityPvpTeam(ent, 1 - this.myPvpTeam);
+          }
+        }
+      }
+    }
+
     for (const [uName, ent] of this.entities.entries()) {
       if (uName === this.myUsername) {
         ent.stats.manaCostMult = this.selfLocalStats.manaCostMult;

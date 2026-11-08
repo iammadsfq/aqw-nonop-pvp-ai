@@ -78,13 +78,25 @@ function triggerMovement(x: number, y: number, isSprint: boolean, isStunned: boo
   const isMoving = Boolean(bot.flash.get<boolean>("world.myAvatar.pMC.mcChar.onMove"));
   const currentSp = bot.flash.get<number>("world.myAvatar.dataLeaf.intSP") ?? 100;
 
-  // Penegakan biaya sprint 50 SP
-  const canReallySprint = isSprint && currentSp >= AQW_SPRINT_STAMINA_COST;
+  const intX = Math.round(x);
+  const intY = Math.round(y);
+  const distFromSelf = Math.hypot(intX - bot.player.x, intY - bot.player.y);
+  const targetDist = Math.hypot(intX - lastSentWalkX, intY - lastSentWalkY);
+  const currentCell = bot.player.cell;
+
+  // 1. Sprint Commitment Lock (400ms):
+  // Satu paket sprint (%mv%...%24%) di AQW berbiaya 50 SP untuk durasi tween ~1.0 detik (speed=24).
+  // Jangan menginterupsi sprint yang baru diluncurkan dengan paket baru setiap 100ms agar server
+  // tidak memotong SP berulang kali dan interpolasi speed=24 tidak terputus menjadi speed=8.
+  if (isMoving && currentCell === lastSentWalkCell && now - lastSprintTime < 400 && targetDist < 180) {
+    return false;
+  }
+
+  // 2. Penegakan biaya sprint 50 SP & jarak minimum sprint (>= 100px agar tidak membuang 50 SP untuk langkah pendek)
+  const canReallySprint = isSprint && currentSp >= AQW_SPRINT_STAMINA_COST && distFromSelf >= 100;
   const targetSpeed = canReallySprint ? AQW_SPRINT_WALK_SPEED : AQW_DEFAULT_WALK_SPEED;
 
-  const targetDist = Math.hypot(x - lastSentWalkX, y - lastSentWalkY);
-  const currentCell = bot.player.cell;
-  const sameDestination = currentCell === lastSentWalkCell && targetDist < 30;
+  const sameDestination = currentCell === lastSentWalkCell && targetDist < 35;
   const sameSpeed = targetSpeed === lastSentWalkSpeed;
 
   if (sameDestination && sameSpeed) {
@@ -92,12 +104,9 @@ function triggerMovement(x: number, y: number, isSprint: boolean, isStunned: boo
     if (now - lastSentWalkTime < 250) return false;
   }
 
-  if (now - lastSentWalkTime < 100 && targetDist < 35) {
+  if (now - lastSentWalkTime < 120 && targetDist < 45) {
     return false;
   }
-
-  const intX = Math.round(x);
-  const intY = Math.round(y);
 
   lastSentWalkCell = currentCell;
   lastSentWalkX = intX;
@@ -112,6 +121,11 @@ function triggerMovement(x: number, y: number, isSprint: boolean, isStunned: boo
 
   if (canReallySprint) {
     lastSprintTime = now;
+    // Kurangi SP lokal secara optimis (-50 SP) sebagaimana native Flash shift-click,
+    // agar client tidak mengirim 18 paket sprint beruntun sebelum tick ct server (6 detik) tiba.
+    try {
+      bot.flash.set("world.myAvatar.dataLeaf.intSP", Math.max(0, currentSp - AQW_SPRINT_STAMINA_COST));
+    } catch (_) {}
     bot.flash.set("world.justRan", true);
     bot.flash.set("world.rootClass.pDash", false);
     bot.player.walkTo(intX, intY, AQW_SPRINT_WALK_SPEED);
@@ -302,7 +316,7 @@ export default async function main(): Promise<void> {
     };
 
     let engagedOpponentName: string | null = null;
-    let oocTimer = 0.0;
+    let oocTimer = 10.0;
     let lastLoopTs = Date.now();
 
     // 6. Main 10 Hz Control Loop
@@ -317,7 +331,8 @@ export default async function main(): Promise<void> {
         wave.opponentKilledInWave = false;
         wave.canReturnToSafezone = false;
         engagedOpponentName = null;
-        oocTimer = 0.0;
+        oocTimer = 10.0;
+        lastSprintTime = 0;
         resetPolicyState();
         bot.sleep(500);
         continue;
@@ -342,6 +357,7 @@ export default async function main(): Promise<void> {
         lastSentWalkCell = "";
         lastSentWalkX = -1;
         lastSentWalkY = -1;
+        lastSprintTime = 0;
         currentCellTracker = curCell;
         doorStuckTimer = 0;
         isUnstucking = false;

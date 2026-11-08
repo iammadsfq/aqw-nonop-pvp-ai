@@ -28,7 +28,7 @@ class ManaRecoveryModel:
         return 0.0
 
 class RegenerationEngine:
-    TICK_INTERVAL = 2.0  # Server AQW mengirim tick regen setiap 2.0 detik
+    TICK_INTERVAL = 5.0  # Telemetri server AQW: tick regen setiap ~5.0-6.0 detik (+25 SP OOC, +5 SP In-Combat)
 
     @staticmethod
     def process_ooc_regen(current_hp: float, max_hp: float, current_sp: float, max_sp: float) -> tuple[float, float]:
